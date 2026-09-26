@@ -13,71 +13,31 @@
 // The detectors find breaks; they do not explain them. `verifyChangepoint` in
 // views.mjs queries Wikipedia's logs for that.
 
-// ---------------------------------------------------------------------------
-// Derived constants
-// ---------------------------------------------------------------------------
+// Constants, and the reasoning behind every value, are documented in
+// references/methodology.md#terminology-and-constants.
 
-/**
- * Φ⁻¹(0.75) = 0.6745 — the 75th percentile of the standard normal.
- *
- * For normally distributed data MAD ≈ 0.6745·σ, so multiplying by it converts a
- * MAD-based deviation back into standard-deviation units. That makes
- * `0.6745·(x − median)/MAD` the *modified z-score* (Iglewicz & Hoaglin, 1993):
- * read like an ordinary z-score, but computed from medians.
- */
-const MAD_TO_SIGMA = 0.6745;
+// Derived from theory — standard values, not to be tuned per-article.
+const MAD_TO_SIGMA = 0.6745; // Φ⁻¹(0.75): rescales MAD into σ units (modified z-score)
+const SPIKE_Z = 3.5; // Iglewicz & Hoaglin outlier cut-off, ~0.05% of points under normality
 
-/**
- * Outlier cut-off for that score, as recommended by Iglewicz & Hoaglin. Under
- * normality it is about 0.05% of observations — one day in 2,000 — so on a
- * 730-day window a hit is genuinely rare. Dropping it to 3.0 roughly triples
- * the flag rate.
- */
-const SPIKE_Z = 3.5;
-
-// ---------------------------------------------------------------------------
-// Tuned thresholds — calibrated against observed articles, not derived.
-// Each exists because a real series defeated the version without it. Changing
-// one changes which rows get flagged; tests/quality.test.mjs pins the behaviour.
-// ---------------------------------------------------------------------------
-
-/** Spikes are rare by definition. Past this share of days the series is merely dispersed. */
-const SPIKE_MAX_DAY_SHARE = 0.05;
-
-/** A month this far above the median is an event whatever its z-score (tr: 424 vs 72 = 5.9x, z only 3.3). */
-const MONTH_SPIKE_RATIO = 4;
-
-/** More flagged months than this is a level change, not spikes (a break's pre-period flagged 7). */
-const MONTH_SPIKE_MAX = 3;
-
-/** Below this monthly volume a ratio means nothing: 26 → 12 views scored a "2.1x break". */
-const CP_MIN_LEVEL = 100;
-
-/** A break must be large. Sits below the smallest real break seen (8.3x) and above ordinary decline. */
-const CP_MIN_RATIO = 1.8;
-
-/** …and abrupt: at least this share of the window's total change must land at the split. */
-const CP_MIN_ABRUPTNESS = 0.6;
-
-/** Months required either side of a candidate split, so an edge cannot masquerade as a break. */
-const CP_MIN_SEGMENT = 4;
-
-/** Months averaged either side of the split to size the jump. */
-const CP_WINDOW = 3;
+// Calibrated against observed articles. Each exists because a real series
+// defeated the version without it; tests/quality.test.mjs pins the behaviour.
+const SPIKE_MAX_DAY_SHARE = 0.05; // beyond this the series is dispersed, not spiky
+const MONTH_SPIKE_RATIO = 4; // a month 4x the median is an event whatever its z
+const MONTH_SPIKE_MAX = 3; // more flagged months than this is a level change
+const CP_MIN_LEVEL = 100; // views/month below which a ratio means nothing
+const CP_MIN_RATIO = 1.8; // a break must be large
+const CP_MIN_ABRUPTNESS = 0.6; // ...and concentrated at the split, not spread out
+const CP_MIN_SEGMENT = 4; // months required either side of a candidate split
+const CP_WINDOW = 3; // months averaged either side to size the jump
+const YEAR = 365;
 
 /** Score thresholds for the label. */
 export const LABELS = { high: 0.7, medium: 0.4 };
 
-const YEAR = 365;
-
-// ---------------------------------------------------------------------------
-
-/**
- * Median, not mean, throughout — and MAD, not standard deviation. The mean and
- * sd are themselves dragged by the outliers being hunted: one 50,000-view day
- * inflates sd enough to hide itself. The median's breakdown point is 50%, the
- * mean's is 0%.
- */
+// Medians and MAD throughout, not means and sd: the mean is dragged by the very
+// outliers being hunted. log1p because traffic is multiplicative, and so that
+// zero-view days give 0 rather than -Infinity.
 const median = (xs) => {
   if (!xs.length) return 0;
   const s = [...xs].sort((a, b) => a - b);
@@ -86,15 +46,7 @@ const median = (xs) => {
 };
 
 const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
-
-/**
- * Pageview traffic is multiplicative and right-skewed, so variation is
- * proportional: 1 → 10 on a quiet article and 1,000 → 10,000 on a busy one are
- * the same event, but on a raw scale the second dwarfs the first. Logs make
- * them comparable. `log1p` rather than `log` so zero-view days do not give −∞.
- */
 const logv = (v) => Math.log1p(Math.max(0, v ?? 0));
-
 const madOf = (vals, med) => median(vals.map((v) => Math.abs(v - med)));
 const zScore = (v, med, mad) => (MAD_TO_SIGMA * (v - med)) / mad;
 const sum = (xs) => xs.reduce((a, b) => a + b, 0);

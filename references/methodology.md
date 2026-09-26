@@ -158,6 +158,85 @@ English "Electric car" (a spike beside a gradual decline), French "Voiture
 electrique" (a decline that recovers), Ukrainian "Золотодобувна промисловість"
 (26 to 12 views/month).
 
+## Terminology and constants
+
+Everything the detectors rely on, and why each value is what it is.
+`scripts/lib/quality.mjs` points here rather than repeating it.
+
+### Why medians, not means
+
+Every statistic here is built from medians. The mean and standard deviation are
+dragged by the very outliers being hunted — one 50,000-view day inflates the sd
+enough to hide itself. In the usual terms, the median has a **breakdown point**
+of 50% (half the data must be corrupted before it misleads) while the mean's is
+0% (a single point can move it arbitrarily far).
+
+The same applies to the spread measure. Instead of the standard deviation the
+detectors use the **median absolute deviation**:
+
+```
+MAD = median( |xᵢ − median(x)| )
+```
+
+### Why log1p
+
+Pageview traffic is multiplicative and right-skewed, so variation is
+proportional rather than absolute. A quiet article going 1 → 10 and a busy one
+going 1,000 → 10,000 are the same event — a tenfold rise — but on a raw scale
+the second dwarfs the first, and any threshold tuned for one is useless for the
+other. Taking logs makes them equal.
+
+`log1p(x)` is `log(1 + x)`, used instead of `log(x)` so that zero-view days give
+0 rather than −∞.
+
+A consequence worth remembering: differences in log space are **ratios** in the
+original space, which is why the changepoint detector raises its computed jump
+back through `Math.exp()` to report "8.3x".
+
+### The modified z-score
+
+An ordinary z-score is `(x − mean) / sd`. Swapping in robust statistics gives
+the **modified z-score** of Iglewicz & Hoaglin (1993):
+
+```
+z = 0.6745 · (x − median) / MAD
+```
+
+**Why 0.6745.** It is Φ⁻¹(0.75), the 75th percentile of the standard normal
+distribution. For normally distributed data MAD ≈ 0.6745·σ, so multiplying by it
+converts the MAD-based deviation back into standard-deviation units. The result
+reads on the same familiar scale as a plain z-score — "three sigma" means what
+you expect — while remaining robust to outliers.
+
+**Why the cut-off is 3.5.** That is the value Iglewicz & Hoaglin recommend.
+Under normality it corresponds to roughly 0.05% of observations, about one day in
+2,000, so on a 730-day window a flagged day is genuinely unusual. Lowering it to
+3.0 roughly triples the flag rate.
+
+Both constants are standard and should not be adjusted to make a particular
+article behave.
+
+### Tuned thresholds
+
+These are calibrated against observed articles, not derived from theory. Each
+exists because a real series defeated the version without it, and
+`tests/quality.test.mjs` pins the resulting behaviour.
+
+| constant | value | why this value |
+|---|---|---|
+| `SPIKE_MAX_DAY_SHARE` | 0.05 | Spikes are rare by definition. Past 5% of days, the series is dispersed rather than spiky. |
+| `MONTH_SPIKE_RATIO` | 4× median | Catches obvious events the z-score just misses: Turkish "gold mining" peaked at 424 against a median of 72 — 5.9× — and scored only z = 3.3. |
+| `MONTH_SPIKE_MAX` | 3 months | More than this is a level change, not spikes. A break's seven-month pre-period all flagged as "spikes" against the post-break median. |
+| `CP_MIN_LEVEL` | 100 views/month | Below this a ratio is meaningless: Ukrainian "Золотодобувна промисловість" scored a "2.1× drop" going from 26 to 12 views/month. |
+| `CP_MIN_RATIO` | 1.8× | Sits below the smallest genuine break observed (8.3×) and above ordinary decline. |
+| `CP_MIN_ABRUPTNESS` | 0.6 | At least 60% of the window's total change must land at the split, separating a step from a slope. |
+| `CP_MIN_SEGMENT` | 4 months | Months required either side of a candidate split, so a series edge cannot masquerade as a break. |
+| `CP_WINDOW` | 3 months | Months averaged either side of the split to size the jump. |
+| `LABELS.high` / `.medium` | 0.7 / 0.4 | Score thresholds for the label. |
+
+The deduction costs in the rubric table above are likewise a judgement about how
+much each problem should discount a figure, not a measured quantity.
+
 ## What is still NOT computed
 
 No significance test (Mann-Kendall, Sen's slope), no seasonal decomposition, no
