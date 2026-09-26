@@ -20,6 +20,7 @@ import { completeMonthWindow, sinceToMonths, iso } from './dates.mjs';
 import { monthlyRollup, compareBlocks, medianDaily, pct1 } from './series.mjs';
 import { monthlySparkline } from './sparkline.mjs';
 import { assess } from './quality.mjs';
+import { getJson, NO_DATA } from './http.mjs';
 
 const NOTICE =
   'Each result carries a confidence label with the reasons behind it. Do not quote ' +
@@ -36,6 +37,54 @@ function normalizeMonth(m, projectMonths) {
   const total = projectMonths?.[m.month];
   if (!total || !m.complete) return { project_views: total ?? null, per_million: null };
   return { project_views: total, per_million: +((m.views / total) * 1e6).toFixed(4) };
+}
+
+/**
+ * When a level shift is detected, go and ask Wikipedia what happened rather
+ * than guessing. Move and deletion logs plus the edit count in the surrounding
+ * months turn "looks like a rename" into either evidence or its absence.
+ *
+ * This matters because the obvious explanation is often wrong. The Spanish
+ * "gold mining" collapse has no move log, no deletion log and no edits at all
+ * during the drop, and all-agents traffic fell with it -- so it is neither a
+ * rename nor a bot reclassification, whatever the shape suggests.
+ */
+async function verifyChangepoint(lang, title, month) {
+  const api = `https://${lang}.wikipedia.org/w/api.php`;
+  const q = (o) => new URLSearchParams({ format: 'json', formatversion: '2', ...o }).toString();
+  const from = `${month.slice(0, 4)}-${month.slice(4, 6)}-01T00:00:00Z`;
+  const d = new Date(from);
+  d.setUTCMonth(d.getUTCMonth() - 2);
+  const start = d.toISOString();
+  d.setUTCMonth(d.getUTCMonth() + 4);
+  const end = d.toISOString();
+
+  try {
+    const [logs, revs] = await Promise.all([
+      getJson(`${api}?${q({ action: 'query', list: 'logevents', letitle: title, lelimit: '20' })}`),
+      getJson(
+        `${api}?${q({
+          action: 'query', prop: 'revisions', titles: title, rvlimit: '50',
+          rvprop: 'timestamp|size', rvstart: start, rvend: end, rvdir: 'newer',
+        })}`,
+      ),
+    ]);
+    const events = (logs === NO_DATA ? [] : (logs?.query?.logevents ?? [])).filter(
+      (e) => e.timestamp >= start && e.timestamp <= end,
+    );
+    const edits = revs === NO_DATA ? [] : (revs?.query?.pages?.[0]?.revisions ?? []);
+
+    if (events.length) {
+      const kinds = [...new Set(events.map((e) => `${e.type}/${e.action}`))].join(', ');
+      return `Wikipedia logs show ${events.length} event(s) around then (${kinds}), which may explain the break`;
+    }
+    if (!edits.length) {
+      return 'No move, deletion or edit activity around that month, so the break is not an article-side change';
+    }
+    return `No move or deletion logged; ${edits.length} ordinary edit(s) around that month`;
+  } catch {
+    return null; // verification is a bonus, never a reason to fail the run
+  }
 }
 
 function newRunId() {
@@ -67,12 +116,27 @@ export async function runViews(
     ]);
     const monthly = monthlyRollup(series.series);
     const comparison = compareBlocks(monthly, totals.months, Math.floor(months / 2));
-    const quality = assess({
+    let quality = assess({
       series: series.series,
       monthly,
       comparison,
       medianDaily: medianDaily(series.series, 90),
     });
+    // A detected break is worth one extra request to explain.
+    if (quality.signals.changepoint) {
+      const note = await verifyChangepoint(r.lang, r.title, quality.signals.changepoint.month);
+      if (note) {
+        quality.signals.changepoint.log_check = note;
+        quality = assess({
+          series: series.series,
+          monthly,
+          comparison,
+          medianDaily: medianDaily(series.series, 90),
+          changepointNote: note,
+        });
+        quality.signals.changepoint.log_check = note;
+      }
+    }
     return { meta: r, series, monthly, totals, comparison, quality };
   });
 

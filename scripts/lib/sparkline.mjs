@@ -1,14 +1,12 @@
 // Task 5 — monthly shape glyphs.
 //
-// This tiny module does a job that would otherwise need statistics. v1 reports
-// raw numbers without quality gating, which means it will happily print
-// "Spanish: -85%". That figure is real but its cause is not a market shift: the
-// monthly series runs 1,982 -> 1,330 -> 861 -> 238 across Mar-Jun 2025 and never
-// recovers, the signature of an article rename or merge sending traffic to a
-// different title.
+// A shape carries information a percentage cannot. Spanish "gold mining" reads
+// -85%, and its monthly series runs 1,982 -> 1,330 -> 861 -> 238 across Mar-Jun
+// 2025 and never recovers. The number alone suggests a market moving; the shape
+// shows a break, after which the two halves of the window are not comparable.
 //
-// Printing the shape next to the number makes that cliff visible without any
-// threshold, detector or judgement call. Transparency instead of cleverness.
+// The confidence rubric now detects that formally, but the sparkline still earns
+// its place: it shows the reader WHY, at a glance, with no threshold to trust.
 
 const BARS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
 

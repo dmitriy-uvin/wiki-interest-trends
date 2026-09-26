@@ -1,10 +1,17 @@
 // Task 4 — deciding whether a number is safe to report.
 //
-// The skill can produce figures that are arithmetically correct and causally
-// wrong. Spanish "gold mining" fell 80.5%, which is true arithmetic and a false
-// conclusion: the article was renamed and its traffic moved to another title.
-// Ukrainian drew 261 views in a year, so its percentage is noise with a decimal
-// point. Turkish grew 92% on the strength of one month.
+// The skill can produce figures that are arithmetically correct and misleading.
+// Spanish "gold mining" fell 80.5% because its traffic collapsed 8x over four
+// months and never came back; the two halves of that window are not comparable,
+// whatever caused the break. Ukrainian drew 261 views in a year, so its
+// percentage is noise with a decimal point. Turkish grew 92% on one month.
+//
+// Note what is NOT claimed. An earlier version of this file asserted the Spanish
+// article had been renamed. Checking the move log, the deletion log and the
+// revision history found nothing: no move, no edits during the collapse, and
+// all-agents traffic fell alongside agent=user, so it was not a bot
+// reclassification either. The detector sees a level shift; the cause is a
+// separate question, and `verifyChangepoint` in views.mjs goes and asks it.
 //
 // Everything here works on the UNDERLYING SERIES, never on the sparkline. An
 // eight-level display glyph puts the peak month at level 7 by definition, so
@@ -217,7 +224,9 @@ const RULES = [
     test: (s) => Boolean(s.changepoint),
     why: (s) =>
       `level ${s.changepoint.direction} of ${s.changepoint.ratio}x at ${s.changepoint.month} ` +
-      `(${s.changepoint.before} to ${s.changepoint.after}/month) — looks like an article rename or merge, not a change in interest`,
+      `(${s.changepoint.before} to ${s.changepoint.after}/month) with no recovery — the series is not measuring ` +
+      `the same thing throughout, so the period comparison is not meaningful` +
+      (s.changepoint.log_check ? `. ${s.changepoint.log_check}` : ''),
   },
   {
     id: 'spike_sign_flip',
@@ -259,9 +268,10 @@ export const LABELS = { high: 0.7, medium: 0.4 };
  * Assess one language's series. Returns a label, a score, and the reasons
  * behind every deduction.
  */
-export function assess({ series, monthly, comparison, medianDaily }) {
+export function assess({ series, monthly, comparison, medianDaily, changepointNote }) {
   const spikes = detectSpikes(series);
   const changepoint = detectChangepoint(monthly);
+  if (changepoint && changepointNote) changepoint.log_check = changepointNote;
   const monthlySpike = detectMonthlySpike(monthly);
   const spikeDates = new Set(spikes.days.map((d) => d.date));
   const yoyExcl = spikeSensitivity(series, spikeDates);

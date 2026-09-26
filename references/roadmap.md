@@ -3,16 +3,20 @@
 Ordered by value per unit of work. Each stage is independently shippable and the
 evidence for it comes from data this skill already produced.
 
-## 1. Quality gating — the judge (highest value)
+## 1. Quality gating — the judge  ✅ BUILT
 
-v1 reports everything raw. That is a deliberate first step, but three rows from a
+Implemented in `scripts/lib/quality.mjs`; see `references/methodology.md` for the
+rubric. What follows is the original case for it, kept because the evidence still
+describes what the detectors are for.
+
+v1 reported everything raw. That is a deliberate first step, but three rows from a
 single real query should not have been reported as findings:
 
 | observed | why it is not a finding |
 |---|---|
 | `uk` gold mining, **261 views in a year** (0.7/day) | No trend exists in that much noise |
 | `tr` gold mining, **+92% normalized** on 838→1,349 views | One month's spike; one forum post could do it |
-| `es` gold mining, **−85%** | A step change: 1,982→1,330→861→238 over Mar–Jun 2025, never recovering — an article rename or merge |
+| `es` gold mining, **−85%** | A break: 1,982→1,330→861→238 over Mar–Jun 2025, never recovering. Cause unknown — the move log, deletion log and revision history are all empty, and all-agents traffic fell too |
 
 What to add, all computable from series already cached:
 
