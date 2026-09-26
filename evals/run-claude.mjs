@@ -126,7 +126,7 @@ for (const sc of scenarios) {
   try {
     const t = await runClaude(sc.prompt, systemPrompt);
     totalCost += t.cost;
-    const scored = score(sc, t);
+    const scored = score(sc, { ...t, reference: systemPrompt ?? '' });
     const refused = t.commands.filter((c) => !ALLOWED.test(c));
     results.push({ id: sc.id, ...scored, commands: t.commands, off_skill_commands: refused, cost: t.cost, turns: t.turns, answer: t.answer.slice(0, 1200) });
     process.stderr.write(`${scored.pass ? 'PASS' : 'FAIL'} (${t.commands.length} cmds, $${t.cost.toFixed(4)})\n`);

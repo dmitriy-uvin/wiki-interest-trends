@@ -110,7 +110,7 @@ async function runScenario(sc, systemPrompt) {
     answer = text;
   }
 
-  const scored = score(sc, { commands, answer, toolOutput });
+  const scored = score(sc, { commands, answer, toolOutput, reference: systemPrompt });
   return {
     id: sc.id,
     ...scored,

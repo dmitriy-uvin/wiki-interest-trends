@@ -1,0 +1,235 @@
+{
+  "model": "haiku",
+  "passed": 3,
+  "total": 8,
+  "totalCost": 0.24042159999999999,
+  "results": [
+    {
+      "id": "brief-1-fasting",
+      "pass": true,
+      "checks": {
+        "ran_a_command": true,
+        "correct_commands": true,
+        "required_content": true,
+        "avoided_wrong_claims": true,
+        "numbers_traceable": true,
+        "topic_extracted": true
+      },
+      "sentence_topics": [],
+      "missed_calls": [],
+      "missed_mentions": [],
+      "forbidden_matches": [],
+      "invented_numbers": [],
+      "commands": [
+        "export WT_CONTACT=\"dimauuvin@gmail.com\" && node scripts/wt.mjs views \"intermittent fasting\" --langs pl,cs --since 2y --table"
+      ],
+      "off_skill_commands": [
+        "export WT_CONTACT=\"dimauuvin@gmail.com\" && node scripts/wt.mjs views \"intermittent fasting\" --langs pl,cs --since 2y --table"
+      ],
+      "cost": 0.03351850000000001,
+      "turns": 4,
+      "answer": "Polish Wikipedia has **no article** on intermittent fasting (a content gap), so there's no measurable comparison. Czech Wikipedia covers the topic as *Přerušovaný půst*, but interest there is **declining**.\n\n**Czech Wikipedia:**\n- **Normalized trend:** −47% over 2 years (per million project views)\n- **Recent audience:** 2,198 views/year in the 6-month average, down from 4,741\n- **Pattern:** The sparkline shows volatility early (spikes in months 6–8), then stabilization at a lower level with a slight uptick recently. No viral moment, just gradual decline.\n\n**Polish Wikipedia:**\n- No dedicated article exists for intermittent fasting on Wikidata (`Q1666254` has no Polish sitelink)\n- This is not \"no interest\"—it's a coverage gap. Interest may exist but isn't being measured by Wikipedia pageviews\n\n**Implication:** Czech readers have some interest (enough for an article to exist), but that interest is shrinking. You can't determine whether Polish interest is higher, lower, or comparable because there's no article to measure. If you wanted to know Polish interest, you'd need Czech Wikipedia to measure a related but broader concept (like \"diet\" or \"health\"), or look for other signals outsi"
+    },
+    {
+      "id": "brief-2-astronomy",
+      "pass": false,
+      "checks": {
+        "ran_a_command": true,
+        "correct_commands": true,
+        "required_content": true,
+        "avoided_wrong_claims": true,
+        "numbers_traceable": false,
+        "topic_extracted": true
+      },
+      "sentence_topics": [],
+      "missed_calls": [],
+      "missed_mentions": [],
+      "forbidden_matches": [],
+      "invented_numbers": [
+        "25"
+      ],
+      "commands": [
+        "cd /Users/dmytro/.claude/skills/wiki-interest-trends && export WT_CONTACT=\"dimauuvin@gmail.com\" && node scripts/wt.mjs views \"astronomy\" --langs uk --table",
+        "cd /Users/dmytro/.claude/skills/wiki-interest-trends && export WT_CONTACT=\"dimauuvin@gmail.com\" && node scripts/wt.mjs views \"astronomy\" --langs uk"
+      ],
+      "off_skill_commands": [
+        "cd /Users/dmytro/.claude/skills/wiki-interest-trends && export WT_CONTACT=\"dimauuvin@gmail.com\" && node scripts/wt.mjs views \"astronomy\" --langs uk --table",
+        "cd /Users/dmytro/.claude/skills/wiki-interest-trends && export WT_CONTACT=\"dimauuvin@gmail.com\" && node scripts/wt.mjs views \"astronomy\" --langs uk"
+      ],
+      "cost": 0.034293699999999996,
+      "turns": 8,
+      "answer": "**No, interest in astronomy is declining in Ukrainian Wikipedia**, but this finding comes with important caveats about trustworthiness.\n\n**The trend:** The article \"Астрономія\" saw a **46.4% decline** in normalized pageviews year-over-year (accounting for the ~25% annual decline in Ukrainian Wikipedia traffic overall). That's a significant drop.\n\n**But trust this cautiously.** Confidence is rated **medium** for two reasons:\n\n1. **Tiny audience.** Astronomy averages only 9 views per day in the Ukrainian edition—at this scale, percentages are mostly noise rather than a genuine signal.\n\n2. **One spike distorts the picture.** September 2024 had an unusual spike (4,687 views that month) that accounts for 20% of all the traffic in the measurement window. If you exclude that one event, the decline is still steep at -58.7%, but it suggests an event drove the prior-period numbers up, not that baseline interest is consistently falling.\n\n**For your course decision:** This data measures *curiosity* (Wikipedia pageviews), not *willingness to pay* for an education product. A declining Wikipedia metric doesn't rule out strong demand—it just means this particular Wikipedia audience isn't actively "
+    },
+    {
+      "id": "brief-3-language-learning",
+      "pass": false,
+      "checks": {
+        "ran_a_command": true,
+        "correct_commands": true,
+        "required_content": false,
+        "avoided_wrong_claims": true,
+        "numbers_traceable": false,
+        "topic_extracted": true
+      },
+      "sentence_topics": [],
+      "missed_calls": [],
+      "missed_mentions": [
+        "(?i)per million|normali[sz]"
+      ],
+      "forbidden_matches": [],
+      "invented_numbers": [
+        "248",
+        "175",
+        "75"
+      ],
+      "commands": [
+        "cd /Users/dmytro/.claude/skills/wiki-interest-trends && export WT_CONTACT=\"dimauuvin@gmail.com\" && node scripts/wt.mjs views \"English language learning\" --langs pl,cs,uk,hu --table",
+        "cd /Users/dmytro/.claude/skills/wiki-interest-trends && export WT_CONTACT=\"dimauuvin@gmail.com\" && node scripts/wt.mjs views \"English language\" --langs pl,cs,uk,hu --table",
+        "cd /Users/dmytro/.claude/skills/wiki-interest-trends && export WT_CONTACT=\"dimauuvin@gmail.com\" && node scripts/wt.mjs views \"English language\" --langs pl,cs,uk,hu"
+      ],
+      "off_skill_commands": [
+        "cd /Users/dmytro/.claude/skills/wiki-interest-trends && export WT_CONTACT=\"dimauuvin@gmail.com\" && node scripts/wt.mjs views \"English language learning\" --langs pl,cs,uk,hu --table",
+        "cd /Users/dmytro/.claude/skills/wiki-interest-trends && export WT_CONTACT=\"dimauuvin@gmail.com\" && node scripts/wt.mjs views \"English language\" --langs pl,cs,uk,hu --table",
+        "cd /Users/dmytro/.claude/skills/wiki-interest-trends && export WT_CONTACT=\"dimauuvin@gmail.com\" && node scripts/wt.mjs views \"English language\" --langs pl,cs,uk,hu"
+      ],
+      "cost": 0.046771499999999994,
+      "turns": 13,
+      "answer": "## English language interest across Central/Eastern European markets\n\nBased on Wikipedia pageview data (24 months, Sept 2024 – Aug 2026), here's what the data shows:\n\n| Market | Article | Daily audience | 2-year trend | Confidence |\n|--------|---------|---|---|---|\n| **Polish** | Język angielski | 248 views/day | **−10.4%** | High |\n| **Ukrainian** | Англійська мова | 175 views/day | **−14.6%** | High |\n| **Czech** | Angličtina | 75 views/day | **−11.6%** | High |\n| **Hungarian** | Angol nyelv | 37 views/day | **−23.6%** | High* |\n\n*Hungarian's small audience (37 views/day) means single events can shift the trend.\n\n### Market prioritization for your app\n\n**Tier 1 — Polish & Czech (Go first)**\n- Largest and most stable audiences; Polish is twice the size of Czech\n- Similar decline rates (~10–11%), suggesting steady baseline demand\n- Polish edition is especially resilient — slowest decline of the four\n\n**Tier 2 — Ukrainian (Go next)**\n- Substantial audience (175 views/day, close behind Polish)\n- Steeper decline (−14.6%), but still measurable interest\n- Market is worth entering, but monitor trend carefully\n\n**Tier 3 — Hungarian (Later)**\n- Smallest audience; steepest decline (−23.6%)\n"
+    },
+    {
+      "id": "gold-mining-es-cliff",
+      "pass": true,
+      "checks": {
+        "ran_a_command": true,
+        "correct_commands": true,
+        "required_content": true,
+        "avoided_wrong_claims": true,
+        "numbers_traceable": true,
+        "topic_extracted": true
+      },
+      "sentence_topics": [],
+      "missed_calls": [],
+      "missed_mentions": [],
+      "forbidden_matches": [],
+      "invented_numbers": [],
+      "commands": [
+        "node scripts/wt.mjs views \"gold mining\" --langs es --since 2y"
+      ],
+      "off_skill_commands": [],
+      "cost": 0.024098799999999997,
+      "turns": 5,
+      "answer": "I found data for Spanish Wikipedia's article \"Minería del oro\" (gold mining), but **the confidence in this measurement is low**, so I can't quote the figures as reliable findings.\n\nHere's why: The data shows a dramatic drop of 8.3× in May 2025 (from ~1,982 to ~238 monthly views) with no recovery afterward. Normally, a cliff like this signals an article rename or merge. However, the Wikipedia audit shows no such edit activity — the article wasn't renamed or merged. That means the break is either a data artifact or a platform-level change (like a traffic reclassification), not a signal about interest in gold mining itself.\n\n**What this means:** With only 10 views/day median traffic, even small events distort the trend, and the unexplained discontinuity makes period-to-period comparison unreliable.\n\nIf you need a more solid answer about Spanish Wikipedia's interest in gold mining, I'd recommend:\n- Checking whether the article was moved or had a major reorganization outside of Wikipedia's standard tracking\n- Comparing against other Spanish-language mining topics to see if they show the same pattern (would suggest a platform change, not topic-specific decline)\n\nWould you like me to look"
+    },
+    {
+      "id": "low-volume-uk",
+      "pass": false,
+      "checks": {
+        "ran_a_command": true,
+        "correct_commands": true,
+        "required_content": false,
+        "avoided_wrong_claims": true,
+        "numbers_traceable": true,
+        "topic_extracted": true
+      },
+      "sentence_topics": [],
+      "missed_calls": [],
+      "missed_mentions": [
+        "(?i)low|small|tiny|noise|noisy|few views|not (enough|reliable)|confidence|0\\.\\d+|per day|insufficient"
+      ],
+      "forbidden_matches": [],
+      "invented_numbers": [],
+      "commands": [
+        "cd /Users/dmytro/.claude/skills/wiki-interest-trends && export WT_CONTACT=\"dimauuvin@gmail.com\" && node scripts/wt.mjs views \"gold mining\" --langs uk --table"
+      ],
+      "off_skill_commands": [
+        "cd /Users/dmytro/.claude/skills/wiki-interest-trends && export WT_CONTACT=\"dimauuvin@gmail.com\" && node scripts/wt.mjs views \"gold mining\" --langs uk --table"
+      ],
+      "cost": 0.0269802,
+      "turns": 7,
+      "answer": "**No, interest in gold mining is declining in Ukrainian Wikipedia.**\n\nOver the past 24 months, the article *Золотодобувна промисловість* (gold mining industry) saw **15.6% fewer views per million project views** year-over-year (normalized figure, accounting for Wikipedia's overall traffic decline).\n\nThe sparkline shows the trend: interest peaked in the first few months of the measurement window, then trended downward. Current traffic is down to 166 views per million, from 261 a year prior.\n\nOne caveat: pageviews measure casual curiosity, not actual market demand or investment activity — a declining trend could reflect seasonal effects or shifts in how people search for the topic online, not necessarily declining real-world interest in the industry."
+    },
+    {
+      "id": "german-fold",
+      "pass": true,
+      "checks": {
+        "ran_a_command": true,
+        "correct_commands": true,
+        "required_content": true,
+        "avoided_wrong_claims": true,
+        "numbers_traceable": true,
+        "topic_extracted": true
+      },
+      "sentence_topics": [],
+      "missed_calls": [],
+      "missed_mentions": [],
+      "forbidden_matches": [],
+      "invented_numbers": [],
+      "commands": [
+        "node scripts/wt.mjs views \"gold mining\" --langs de"
+      ],
+      "off_skill_commands": [],
+      "cost": 0.0221043,
+      "turns": 5,
+      "answer": "German Wikipedia doesn't have a dedicated article on \"gold mining\" — the topic redirects into the broader **\"Gold\"** article instead. This is a content gap: there's no standalone coverage to measure.\n\nI can measure interest in the broader **\"Gold\"** article as a proxy, which would include gold mining interest but also other topics like gold jewelry, history, chemistry, and economics. Would you like me to do that instead, or were you looking for something else?"
+    },
+    {
+      "id": "followup-add-language",
+      "pass": false,
+      "checks": {
+        "ran_a_command": true,
+        "correct_commands": true,
+        "required_content": true,
+        "avoided_wrong_claims": true,
+        "numbers_traceable": false,
+        "topic_extracted": true
+      },
+      "sentence_topics": [],
+      "missed_calls": [],
+      "missed_mentions": [],
+      "forbidden_matches": [],
+      "invented_numbers": [
+        "25"
+      ],
+      "commands": [
+        "WT_CONTACT=\"dimauuvin@gmail.com\" node scripts/wt.mjs views \"astronomy\" --langs uk,pl --table",
+        "WT_CONTACT=\"dimauuvin@gmail.com\" node scripts/wt.mjs views \"astronomy\" --langs uk,pl,cs --table"
+      ],
+      "off_skill_commands": [
+        "WT_CONTACT=\"dimauuvin@gmail.com\" node scripts/wt.mjs views \"astronomy\" --langs uk,pl --table",
+        "WT_CONTACT=\"dimauuvin@gmail.com\" node scripts/wt.mjs views \"astronomy\" --langs uk,pl,cs --table"
+      ],
+      "cost": 0.0262984,
+      "turns": 8,
+      "answer": "## Astronomy interest trends (Sept 2024 – Aug 2026)\n\n**Interest is declining across all three editions, but at different rates:**\n\n- **Ukrainian** (Астрономія): **−46.4%** — The steepest decline. The sparkline shows a sharp drop from the start and remains low.\n- **Czech** (Astronomie): **−23.7%** — Moderate decline, more stable than Ukrainian but clearly trending down.\n- **Polish** (Astronomia): **−8%** — Smallest decline. Interest has been relatively stable, with only a gentle downward trend.\n\nThese figures are **normalized per million project views**, which removes the noise of each edition's general traffic decline (Ukrainian has lost ~25%/year, Polish ~7%/year as the projects shrink). So these percentages reflect *actual* changes in astronomy interest, not just Wikipedia shrinkage.\n\n**One important limitation:** pageview counts measure curiosity, not engagement depth or intent to learn. A -46% decline in Ukrainian astronomy could reflect shifts in information-seeking behavior (younger users moving to video, structured knowledge, etc.) rather than a loss of interest in astronomy itself. Polish's stability suggests astronomy content maintains relevance there even as the platform "
+    },
+    {
+      "id": "pdf-report",
+      "pass": false,
+      "checks": {
+        "ran_a_command": true,
+        "correct_commands": true,
+        "required_content": true,
+        "avoided_wrong_claims": true,
+        "numbers_traceable": false,
+        "topic_extracted": true
+      },
+      "sentence_topics": [],
+      "missed_calls": [],
+      "missed_mentions": [],
+      "forbidden_matches": [],
+      "invented_numbers": [
+        "2.7"
+      ],
+      "commands": [
+        "export WT_CONTACT=\"dimauuvin@gmail.com\" && node scripts/wt.mjs views \"electric cars\" --langs de,fr",
+        "node scripts/wt.mjs report --run r_20260926163035_f1ba75 --pdf /Users/dmytro/product_ai/wiki-interest-trends/electric-cars-report.pdf"
+      ],
+      "off_skill_commands": [
+        "export WT_CONTACT=\"dimauuvin@gmail.com\" && node scripts/wt.mjs views \"electric cars\" --langs de,fr"
+      ],
+      "cost": 0.0263562,
+      "turns": 7,
+      "answer": "Done! Your PDF is ready at `/Users/dmytro/product_ai/wiki-interest-trends/electric-cars-report.pdf`.\n\n**Key findings:**\n\n- **German Wikipedia** (*Elektroauto*): Interest down 8.9% year-over-year (normalized), with ~147 views/day. Steady, moderate decline.\n- **French Wikipedia** (*Voiture électrique*): Interest down 23.2% year-over-year (normalized), with ~54 views/day. Steeper decline than German.\n\nThe German audience for electric cars is roughly 2.7× larger than the French audience. Both editions show declining curiosity over the past 24 months, likely reflecting that EV coverage has matured from novelty to mainstream topic. The French decline is notably sharper—worth investigating whether that reflects French-specific market saturation, editorial coverage patterns, or just different Wikipedia reading habits."
+    }
+  ]
+}

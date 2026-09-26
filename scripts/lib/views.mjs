@@ -275,16 +275,22 @@ export function renderTable(summary) {
   const e = summary.entity;
   lines.push(`${summary.topic}  [${e.qid} ${e.label ?? ''}]  ${summary.window.from} .. ${summary.window.to}`);
   lines.push('');
-  const head = ['lang', 'article', 'prior', 'recent', 'raw', 'norm', 'shape'];
+  // med/day is here because without it a model wanting audience size has nothing
+  // to quote and makes one up: Haiku reported Polish at "~450 views/day" against
+  // an actual 248.5. Any field the JSON carries and the table drops is a field
+  // something will invent.
+  const head = ['lang', 'article', 'prior', 'recent', 'med/day', 'raw', 'norm', 'conf', 'shape'];
   const rows = summary.results.map((r) => [
     r.lang,
     clip(r.title, 28),
     r.insufficient_history ? '-' : String(r.raw.prior),
     r.insufficient_history ? '-' : String(r.raw.recent),
+    String(r.median_daily_90d ?? '-'),
     r.insufficient_history ? 'n/a' : `${r.raw.yoy_pct > 0 ? '+' : ''}${r.raw.yoy_pct}%`,
     r.insufficient_history || r.normalized.unavailable
       ? 'n/a'
       : `${r.normalized.yoy_pct > 0 ? '+' : ''}${r.normalized.yoy_pct}%`,
+    (r.confidence ?? '-').toUpperCase(),
     r.sparkline,
   ]);
   const w = head.map((h, i) => Math.max(displayWidth(h), ...rows.map((r) => displayWidth(r[i]))));
@@ -292,6 +298,11 @@ export function renderTable(summary) {
   lines.push(fmtRow(head));
   lines.push(w.map((n) => '-'.repeat(n)).join('  '));
   for (const r of rows) lines.push(fmtRow(r));
+  // Without these the table silently bypassed the whole quality layer: a LOW row
+  // looked identical to a HIGH one, and a model reading it had no way to know.
+  for (const r of summary.results) {
+    for (const reason of r.confidence_reasons ?? []) lines.push(`  ${r.lang}: ${reason}`);
+  }
   for (const u of summary.unresolved) lines.push(`gap   ${u.lang}: ${u.reason} - ${u.detail}`);
   if (summary.hint) {
     lines.push('');

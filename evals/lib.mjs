@@ -54,14 +54,16 @@ export const anyMatch = (patterns, text) => (patterns ?? []).filter((p) => compi
  * years, and values the model rounded for readability are ignored, so this
  * flags invention rather than paraphrase.
  */
-export function untraceableNumbers(answer, toolOutput) {
+export function untraceableNumbers(answer, toolOutput, reference = '') {
   // Compare NUMERICALLY, never as substrings. Substring matching silently
   // accepts invented figures: "63" occurs inside "40630", so a fabricated 62.5%
   // would look traceable against any output containing that count.
   const NUM = /-?\d[\d,]*(?:\.\d+)?/g;
   const parse = (t) => (String(t).match(NUM) ?? []).map((x) => parseFloat(x.replace(/,/g, ''))).filter(Number.isFinite);
 
-  const shown = parse(toolOutput);
+  // SKILL.md states figures of its own (the per-edition traffic decline rates),
+  // and a model quoting those is citing documentation, not inventing.
+  const shown = [...parse(toolOutput), ...parse(reference)];
   const shownForms = new Set();
   for (const o of shown) {
     for (const v of [o, Math.abs(o), Math.round(o), Math.abs(Math.round(o)), +o.toFixed(1), Math.abs(+o.toFixed(1))]) {
@@ -78,18 +80,26 @@ export function untraceableNumbers(answer, toolOutput) {
     if (Number.isInteger(a) && a >= 1900 && a <= 2100) continue; // years
     if (shownForms.has(v) || shownForms.has(a)) continue;
     // The model may round a shown figure for readability.
-    if (shown.some((o) => Math.abs(Math.abs(o) - a) < 0.5 && a >= 1)) continue;
+    // Two tolerances, both for rounding rather than invention:
+    //   absolute <= 0.5, because the tool reports 248.5 and "248" is correct
+    //     (the strict < form failed exactly on the .5 boundary, which is where
+    //     rounding happens);
+    //   relative 2% above 100, because "~240" for 238 is ordinary prose.
+    // Neither hides a real error: a claimed 450 against an actual 248.5 is 81%
+    // out and still flagged.
+    if (shown.some((o) => Math.abs(Math.abs(o) - a) <= 0.5 && a >= 1)) continue;
+    if (a >= 100 && shown.some((o) => Math.abs(Math.abs(o) - a) / a <= 0.02)) continue;
     bad.push(raw);
   }
   return [...new Set(bad)];
 }
 
 /** Score one finished transcript against a scenario's checks. */
-export function score(sc, { commands, answer, toolOutput }) {
+export function score(sc, { commands, answer, toolOutput, reference = '' }) {
   const missedCalls = allMatch(sc.must_call, commands.join('\n'));
   const missedMentions = allMatch(sc.must_mention, answer);
   const forbidden = anyMatch(sc.must_not_mention, answer);
-  const invented = untraceableNumbers(answer, toolOutput);
+  const invented = untraceableNumbers(answer, toolOutput, reference);
   // A model that pipes the user's question straight through as the topic gets a
   // real article back (Wikipedia search always returns something), so no other
   // check catches it. This does.
