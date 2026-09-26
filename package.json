@@ -13,7 +13,6 @@
   },
   "dependencies": {},
   "optionalDependencies": {
-    "pdfkit": "0.15.2",
-    "svg-to-pdfkit": "0.1.8"
+    "pdfkit": "0.15.2"
   }
 }
