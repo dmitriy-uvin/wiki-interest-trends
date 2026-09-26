@@ -1,0 +1,36 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "wt views (breakpoints)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/wt.mjs",
+      "args": ["views", "meditation", "--langs", "uk", "--since", "2y"],
+      "cwd": "${workspaceFolder}",
+      "env": { "WT_CONTACT": "dimauuvin@gmail.com", "WT_DEBUG": "1" },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "wt views (offline, fixtures only)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/wt.mjs",
+      "args": ["views", "gold mining", "--langs", "en,de,fr,es,pl"],
+      "cwd": "${workspaceFolder}",
+      "env": { "WT_CONTACT": "debug@local", "WT_FIXTURES": "1" },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "current test file",
+      "type": "node",
+      "request": "launch",
+      "program": "${file}",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}
