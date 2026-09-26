@@ -55,6 +55,16 @@ Flags: `--langs`, `--from`, `--no-verify`, `--allow-fold` as above.
 
 Builds outputs from an existing run. **Makes zero API calls.**
 
+The PDF is two pages: page 1 carries the summary table, both charts and the
+findings; page 2 carries the underlying period-by-period figures. Values there
+are abbreviated (`193k`, `1.2M`) and periods are compact (`01.26`, `Q1 24`),
+because that is what lets 24 rows and up to 12 language columns fit. Windows
+longer than 66 months switch from months to quarters automatically. Exact
+figures are always in the run directory's `series/<lang>.monthly.ndjson`.
+
+When the limitations block will not fit on page 1 (roughly 7+ languages), it
+moves to page 2 and page 1 says so.
+
 | Flag | Default | Meaning |
 |---|---|---|
 | `--run` | one of run/dir | Run id from a previous `wt views`. |

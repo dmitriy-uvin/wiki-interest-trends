@@ -40,6 +40,12 @@ Read `norm`, not `raw`: every edition is losing human traffic at its own rate,
 so raw counts make every topic look like it is dying. Read the `shape` too — the
 Spanish cliff above is an article rename, not a market collapse.
 
+## Report
+
+Two pages: insights, charts and findings on page 1; the month-by-month numbers
+behind them on page 2. Figures there are abbreviated so the table fits; the run
+directory always holds exact values.
+
 ## Tests
 
 ```bash

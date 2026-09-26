@@ -207,3 +207,4 @@ try {
 }
 
 // node scripts/wt.mjs report --run  --pdf /Users/dmytro/product_ai/_output.pdf
+// node scripts/wt.mjs report --run r_20260926144156_6df8d7 --pdf /Users/dmytro/product_ai/r_20260926144156_6df8d7_output.pdf
