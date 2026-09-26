@@ -19,11 +19,13 @@ import { mapLimit } from './http.mjs';
 import { completeMonthWindow, sinceToMonths, iso } from './dates.mjs';
 import { monthlyRollup, compareBlocks, medianDaily, pct1 } from './series.mjs';
 import { monthlySparkline } from './sparkline.mjs';
+import { assess } from './quality.mjs';
 
-const RAW_NOTICE =
-  'Raw measurements, no quality gating applied. Check days_missing, the monthly ' +
-  'sparkline and the resolved title before trusting any figure. A sudden cliff in ' +
-  'the sparkline usually means an article rename or merge, not a change in interest.';
+const NOTICE =
+  'Each result carries a confidence label with the reasons behind it. Do not quote ' +
+  'figures from a low-confidence row as findings: a detected level shift means the ' +
+  'article was renamed or merged, not that interest changed. Always report the ' +
+  'resolved article title alongside any number.';
 
 /**
  * A month's topic views expressed per million of that project's total traffic.
@@ -65,10 +67,16 @@ export async function runViews(
     ]);
     const monthly = monthlyRollup(series.series);
     const comparison = compareBlocks(monthly, totals.months, Math.floor(months / 2));
-    return { meta: r, series, monthly, totals, comparison };
+    const quality = assess({
+      series: series.series,
+      monthly,
+      comparison,
+      medianDaily: medianDaily(series.series, 90),
+    });
+    return { meta: r, series, monthly, totals, comparison, quality };
   });
 
-  const results = measured.map(({ meta, series, monthly, comparison }) => {
+  const results = measured.map(({ meta, series, monthly, comparison, quality }) => {
     const row = {
       lang: meta.lang,
       title: meta.title,
@@ -77,6 +85,10 @@ export async function runViews(
       median_daily_90d: medianDaily(series.series, 90),
       days_missing: series.days_missing,
       sparkline: monthlySparkline(monthly),
+      confidence: quality.confidence,
+      confidence_score: quality.score,
+      ...(quality.reasons.length && { confidence_reasons: quality.reasons.map((r) => r.detail) }),
+      signals: quality.signals,
     };
     if (comparison.insufficient_history) {
       row.insufficient_history = {
@@ -118,7 +130,7 @@ export async function runViews(
     entity: resolution.entity,
     ...(resolution.other_candidates && { other_candidates: resolution.other_candidates }),
     window: { from: iso(win.from), to: iso(win.to), complete_months: months },
-    notice: RAW_NOTICE,
+    notice: NOTICE,
     results,
     unresolved: resolution.unresolved,
     ...(hint && { hint }),

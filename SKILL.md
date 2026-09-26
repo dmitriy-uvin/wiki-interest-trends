@@ -51,11 +51,14 @@ node scripts/wt.mjs report --run r_20260926103430_24b779 --pdf fasting.pdf
    under a surprising title — French "gold mining" resolves to *Histoire des
    mines d'or* ("History of gold mines"). Showing the title is how the user
    catches that.
-4. **Always mention at least one limitation** when giving a recommendation. The
+4. **Never quote a `confidence: "low"` figure as a finding.** Report what the
+   `confidence_reasons` say instead. A detected level shift means the article
+   was renamed or merged, not that interest changed.
+5. **Always mention at least one limitation** when giving a recommendation. The
    most important: pageviews measure curiosity, not willingness to pay.
-5. **Never treat an unmeasurable language as zero interest.** See `unresolved`
+6. **Never treat an unmeasurable language as zero interest.** See `unresolved`
    below.
-6. **Say "language edition", not "country".** They are not the same thing, and
+7. **Say "language edition", not "country".** They are not the same thing, and
    this API has no country breakdown.
 
 ## Reading the output
@@ -85,6 +88,19 @@ losing human traffic at its own rate (roughly -7%/year for `en`, -25%/year for
 `uk`). Raw says Russian gold mining fell 40%; normalized says 24%, and the
 difference is Wikipedia's decline, not the topic's. Mention the raw number only
 when the user asks for absolute volume.
+
+**Check `confidence` before quoting anything.**
+
+| label | meaning |
+|---|---|
+| `high` | safe to quote |
+| `medium` | quote with the reason attached |
+| `low` | do not quote as a finding; report the reason instead |
+
+`confidence_reasons` explains every deduction in plain language, e.g. *"level
+drop of 8.3x at 202505 (1982 to 238/month) — looks like an article rename or
+merge, not a change in interest"*. The label is computed by a fixed rubric, not
+judged, so it is the same every run.
 
 `median_daily_90d` is the size of the audience. A topic at 1 view/day has no
 meaningful trend no matter what the percentage says — say so.

@@ -102,11 +102,63 @@ Each language's per-million series is indexed to 100 at its first month with
 data, so editions three orders of magnitude apart share one axis. The dashed
 line marks the 100 baseline. Gaps break the line rather than being interpolated.
 
-## What is deliberately NOT computed in this version
+## Confidence
 
-No quality gating: no volume floor, no spike detection, no changepoint
-detection, no significance test, no confidence score. Everything measurable is
-reported with its monthly shape so a reader can see trouble.
+A deterministic rubric over the underlying series. Every row starts at 1.0 and
+loses points; the label is `high` at 0.7+, `medium` at 0.4+, `low` below.
 
-The evidence for adding these, and the intended design, is in
-[roadmap.md](roadmap.md).
+| deduction | cost | fires when |
+|---|---|---|
+| `no_signal` | 0.5 | median < 1 view/day. **Disqualifying.** |
+| `very_low_volume` | 0.35 | median 1-10 views/day |
+| `low_volume` | 0.15 | median 10-50 views/day |
+| `changepoint` | 0.35 | a permanent level shift. **Disqualifying.** |
+| `spike_sign_flip` | 0.3 | removing spike days flips the year-over-year sign |
+| `monthly_spike` | 0.25 | up to 3 months far above the rest |
+| `spike_heavy` | 0.2 | over 20% of views fall on spike days |
+| `sparse` | 0.15 | over 10% of days have no upstream data |
+| `short_history` | 0.2 | fewer than 24 complete months |
+
+Two rules are **disqualifying**: they force `low` whatever the score, because
+they are categorical rather than matters of degree. A series with no traffic has
+no trend to measure, and one with a level shift has stopped measuring a single
+consistent thing.
+
+### How each detector avoids crying wolf
+
+Detection runs on the **underlying series, never the sparkline**. An eight-level
+display glyph puts the peak month at level 7 by definition, so pattern-matching
+on it flags about a third of all rows.
+
+**Spikes** use a median-absolute-deviation z-score on `log1p(views)`, cut off at
+3.5. The log stops a busy article's normal variation swamping a quiet one's.
+Guards: a near-constant series has MAD 0, so a ratio-to-median fallback applies,
+and only when the median is at least 1; and flagged days must stay rare (under
+5% of the window), or the series is merely dispersed.
+
+**Monthly spikes** exist because daily MAD misses a bump spread over thirty
+days. Two ways in: the z-score, or a month at 4x the median. At most 3 months
+may flag — more than that is a level change, not an event.
+
+**Changepoints** are the hardest, because a steadily declining series also has a
+"best split". Three conditions must all hold:
+
+1. the move is **abrupt** — at least 60% of the window's total change happens
+   across the three months either side of the split;
+2. it is **large** — a ratio of 1.8x or more;
+3. the segments are **severed** — no month after the split reaches any month
+   before it.
+
+Segment levels use medians, not means, so a spike adjacent to the split cannot
+manufacture a step. And the detector does not run at all below 100 views/month,
+because a ratio on tiny counts means nothing.
+
+Each condition was added because a real article defeated the previous version:
+English "Electric car" (a spike beside a gradual decline), French "Voiture
+electrique" (a decline that recovers), Ukrainian "Золотодобувна промисловість"
+(26 to 12 views/month).
+
+## What is still NOT computed
+
+No significance test (Mann-Kendall, Sen's slope), no seasonal decomposition, no
+bot-contamination tracking, no redirect accounting. See [roadmap.md](roadmap.md).

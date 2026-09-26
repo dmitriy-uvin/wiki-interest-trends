@@ -64,7 +64,7 @@ function indexedLines(analysis, monthly) {
 export function limitationsFor(analysis) {
   const out = [
     'Wikipedia pageviews measure curiosity, not willingness to pay. Treat any finding here as a direction to validate, not as demand.',
-    'Figures are per LANGUAGE EDITION, not per country. There is no per-article country breakdown in this API, and one edition serves many countries (en covers the US, Australia, Canada, South Africa and Ghana alike).',
+    'Figures are per LANGUAGE EDITION, one edition serves many countries (en covers the US, Australia, Canada, South Africa and Ghana alike).',
     'Normalized figures divide by each project’s total traffic. This is what makes editions comparable: every edition is losing human readers, at rates from about -7% (en) to -25% (uk) per year, so raw counts understate a topic that is merely holding its share.',
     'Bot traffic is excluded (agent=user). Raw all-agent traffic runs roughly a third higher.',
   ];
@@ -84,8 +84,14 @@ export function limitationsFor(analysis) {
       `${analysis.unresolved.length} requested language(s) could not be measured; see the gaps section. An absent article is a content gap, not zero interest.`,
     );
   }
+  const flagged = analysis.results.filter((r) => r.confidence && r.confidence !== 'high');
+  if (flagged.length) {
+    out.push(
+      `${flagged.length} of ${analysis.results.length} rows are not rated high confidence. Their reasons are listed under the table; a LOW row should not be quoted as a finding.`,
+    );
+  }
   out.push(
-    'No quality gating is applied in this version. A cliff in the monthly shape usually means an article was renamed or merged rather than that interest collapsed.',
+    'Confidence is computed by a fixed rubric over the underlying series (volume, level shifts, spikes, data gaps, history length), not judged. It flags whether a figure is safe to quote, not whether the topic is a good business bet.',
   );
   return out;
 }
@@ -282,19 +288,20 @@ export async function writePdf(runDirPath, outPath, { notes = '' } = {}) {
   // ---- raw-measurement banner
   doc.rect(M, y, W, 15).fillColor('#fff4e5').fill();
   doc.font('bold').fontSize(7.5).fillColor('#8a5a00').text(
-    'RAW MEASUREMENTS — no quality gating applied. Read the monthly shape and the limitations before acting.',
+    'Each row carries a confidence label. Do not quote a LOW row as a finding — see the reasons below the table.',
     M + 5, y + 4.5, { width: W - 10 },
   );
   y += 24;
 
   // ---- table
   const cols = [
-    { k: 'lang', label: 'Language', w: 116 },
-    { k: 'article', label: 'Article measured', w: 150 },
+    { k: 'lang', label: 'Language', w: 104 },
+    { k: 'article', label: 'Article measured', w: 138 },
     { k: 'level', label: 'per 1M', w: 46 },
     { k: 'raw', label: 'YoY raw', w: 50 },
     { k: 'norm', label: 'YoY norm', w: 54 },
-    { k: 'shape', label: 'Monthly shape', w: 0 },
+    { k: 'conf', label: 'Confidence', w: 58 },
+    { k: 'shape', label: 'Shape', w: 0 },
   ];
   cols.at(-1).w = W - cols.slice(0, -1).reduce((a, c) => a + c.w, 0);
 
@@ -317,6 +324,7 @@ export async function writePdf(runDirPath, outPath, { notes = '' } = {}) {
       level: norm ? norm.recent.toFixed(2) : '–',
       raw: r.raw ? `${r.raw.yoy_pct > 0 ? '+' : ''}${r.raw.yoy_pct}%` : 'n/a',
       norm: norm ? `${norm.yoy_pct > 0 ? '+' : ''}${norm.yoy_pct}%` : 'n/a',
+      conf: (r.confidence ?? '\u2013').toUpperCase(),
     };
     cx = M;
     doc.font('body').fontSize(8).fillColor('#111');
@@ -324,7 +332,10 @@ export async function writePdf(runDirPath, outPath, { notes = '' } = {}) {
       if (c.k === 'shape') {
         sparkBars(doc, cx, y - 1, Math.min(c.w - 6, 120), 9, rows.map((m) => m.views));
       } else {
-        doc.fillColor(c.k === 'norm' && norm ? (norm.yoy_pct >= 0 ? '#1a7f37' : '#b3261e') : '#111');
+        const confColour = { HIGH: '#1a7f37', MEDIUM: '#8a5a00', LOW: '#b3261e' }[cells.conf] ?? '#111';
+        doc.fillColor(
+          c.k === 'conf' ? confColour : c.k === 'norm' && norm ? (norm.yoy_pct >= 0 ? '#1a7f37' : '#b3261e') : '#111',
+        );
         doc.text(cells[c.k], cx, y, { width: c.w - 4, lineBreak: false, ellipsis: true });
       }
       cx += c.w;
@@ -332,6 +343,19 @@ export async function writePdf(runDirPath, outPath, { notes = '' } = {}) {
     y += 13;
   }
   y += 6;
+
+  // Why any row is not fully trusted. These come from the rubric, not prose.
+  const flagged = analysis.results.filter((r) => r.confidence && r.confidence !== 'high');
+  if (flagged.length) {
+    doc.font('body').fontSize(6.5);
+    for (const r of flagged) {
+      for (const reason of r.confidence_reasons ?? []) {
+        doc.fillColor(r.confidence === 'low' ? '#b3261e' : '#8a5a00').text(`${r.lang}: ${reason}`, M + 4, y, { width: W - 8 });
+        y = doc.y + 0.5;
+      }
+    }
+    y += 5;
+  }
 
   // ---- charts
   const lines = indexedLines(analysis, monthly);
