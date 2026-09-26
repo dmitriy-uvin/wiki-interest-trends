@@ -190,6 +190,7 @@ export function drawDataPage(doc, analysis, monthly, { canRender, limitations })
   doc.moveTo(M, y).lineTo(M + W, y).lineWidth(0.6).strokeColor('#bbb').stroke();
   y += 3;
 
+  const bodyTop = y - 13; // just above the header rule, so the rules bracket the head too
   let lastYear = rows[0]?.year;
   for (const row of rows) {
     if (row.year !== lastYear) {
@@ -204,6 +205,17 @@ export function drawDataPage(doc, analysis, monthly, { canRender, limitations })
       });
     });
     y += rowH;
+  }
+
+  // Column rules. Hairline weight only: values already align on their right
+  // edge, so these exist to carry the eye across a wide row, not to box cells.
+  const bodyBottom = y - rowH + 7.5;
+  // 0.3pt at #e3e3e3 was invisible once rendered; a rule nobody can see does no
+  // work. This is still the lightest weight that survives print and screen.
+  doc.lineWidth(0.5).strokeColor('#cfcfcf');
+  for (let i = 0; i < langs.length; i++) {
+    const x = M + labelW + i * colW - 2;
+    doc.moveTo(x, bodyTop).lineTo(x, bodyBottom).stroke();
   }
 
   // Limitations land here when page 1 ran out of room for them.
