@@ -102,13 +102,52 @@ test('the rubric scores healthy data high and states no reasons', () => {
   assert.deepEqual(q.reasons, []);
 });
 
-test('a detected rename is disqualifying regardless of the score', () => {
-  const es = monthly([2300, 2589, 2507, 2468, 2007, 2371, 1982, 1330, 861, 238, 185, 148,
-                      110, 148, 142, 106, 163, 138, 238, 439, 407, 388, 276, 372]);
+// es "gold mining": 1,982 -> 238/month over four months, never recovering.
+const ES_GOLD = [2300, 2589, 2507, 2468, 2007, 2371, 1982, 1330, 861, 238, 185, 148,
+                 110, 148, 142, 106, 163, 138, 238, 439, 407, 388, 276, 372];
+
+test('a detected level shift is disqualifying regardless of the score', () => {
   const series = daily(Array.from({ length: 730 }, () => 40));
-  const q = assess({ series, monthly: es, comparison: { raw: { yoy_pct: -84.6 } }, medianDaily: 40 });
+  const q = assess({ series, monthly: monthly(ES_GOLD), comparison: { raw: { yoy_pct: -84.6 } }, medianDaily: 40 });
   assert.equal(q.confidence, 'low', 'a level shift means the series stopped measuring one thing');
-  assert.ok(q.reasons.some((r) => r.id === 'changepoint'));
+  assert.ok(q.reasons.some((r) => r.id === 'changepoint_unexplained'));
+});
+
+test('a break with a move log and a break without one are told apart', () => {
+  // Both disqualify the percentage. They must not say the same thing: one is an
+  // artifact of the article, the other is a real collapse nobody can explain, and
+  // a founder reading the report needs to know which.
+  const series = daily(Array.from({ length: 730 }, () => 40));
+  const base = { series, monthly: monthly(ES_GOLD), comparison: { raw: { yoy_pct: -84.6 } }, medianDaily: 40 };
+
+  const renamed = assess({
+    ...base,
+    changepointCheck: { cause: 'article_event', detail: 'Wikipedia logs show 2 event(s) around then (move/move), which explains the break as an article event' },
+  });
+  const r1 = renamed.reasons.find((r) => r.id === 'changepoint_article_event');
+  assert.ok(r1, 'a logged move must select the article-event rule');
+  assert.match(r1.detail, /Wikipedia logs show/);
+  assert.match(r1.detail, /moved or merged, so this is not a change in interest/);
+  assert.equal(renamed.confidence, 'low');
+
+  const unexplained = assess({
+    ...base,
+    changepointCheck: { cause: 'no_activity', detail: 'No move, deletion or edit activity around that month, so the break is not an article-side change' },
+  });
+  const r2 = unexplained.reasons.find((r) => r.id === 'changepoint_unexplained');
+  assert.ok(r2, 'no logged activity must select the unexplained rule');
+  assert.match(r2.detail, /report the shift and its date/);
+  assert.ok(!/moved or merged/.test(r2.detail), 'must not call an unexplained drop a rename');
+  assert.equal(unexplained.confidence, 'low');
+});
+
+test('an unverified break says only what is known', () => {
+  // The log check is one network request and may not have run at all.
+  const series = daily(Array.from({ length: 730 }, () => 40));
+  const q = assess({ series, monthly: monthly(ES_GOLD), comparison: { raw: { yoy_pct: -84.6 } }, medianDaily: 40 });
+  const r = q.reasons.find((x) => x.id === 'changepoint_unexplained');
+  assert.match(r.detail, /not measuring the same thing throughout/);
+  assert.ok(!/logged|activity/.test(r.detail), 'with no verdict it must not claim anything about the logs');
 });
 
 test('too little traffic is low confidence on its own', () => {

@@ -44,12 +44,25 @@ function normalizeMonth(m, projectMonths) {
  * than guessing. Move and deletion logs plus the edit count in the surrounding
  * months turn "looks like a rename" into either evidence or its absence.
  *
- * This matters because the obvious explanation is often wrong. The Spanish
- * "gold mining" collapse has no move log, no deletion log and no edits at all
- * during the drop, and all-agents traffic fell with it -- so it is neither a
- * rename nor a bot reclassification, whatever the shape suggests.
+ * This matters because the obvious explanation is often wrong, in both
+ * directions:
+ *   * en "X (social network)" rises 128.9x at 202603 and the log shows
+ *     move/move plus protect/move_prot -- the article was moved onto that title,
+ *     so the rise is not interest at all.
+ *   * es "gold mining" falls 8.3x and has no move log, no deletion log and no
+ *     edits during the drop, with all-agents traffic falling too -- so it is
+ *     neither a rename nor a bot reclassification, whatever the shape suggests.
+ *
+ * Those two need different words in a report, so the verdict is returned as a
+ * value the rubric can branch on rather than as prose it can only echo.
+ *
+ * `cause` is one of:
+ *   `article_event` — a move, deletion or protection around that month
+ *   `no_activity`   — nothing logged and no edits either
+ *   `edits_only`    — ordinary editing, nothing structural
+ * and `null` is returned when the check could not run at all.
  */
-async function verifyChangepoint(lang, title, month) {
+export async function verifyChangepoint(lang, title, month) {
   const api = `https://${lang}.wikipedia.org/w/api.php`;
   const q = (o) => new URLSearchParams({ format: 'json', formatversion: '2', ...o }).toString();
   const from = `${month.slice(0, 4)}-${month.slice(4, 6)}-01T00:00:00Z`;
@@ -76,12 +89,21 @@ async function verifyChangepoint(lang, title, month) {
 
     if (events.length) {
       const kinds = [...new Set(events.map((e) => `${e.type}/${e.action}`))].join(', ');
-      return `Wikipedia logs show ${events.length} event(s) around then (${kinds}), which may explain the break`;
+      return {
+        cause: 'article_event',
+        detail: `Wikipedia logs show ${events.length} event(s) around then (${kinds})`,
+      };
     }
     if (!edits.length) {
-      return 'No move, deletion or edit activity around that month, so the break is not an article-side change';
+      return {
+        cause: 'no_activity',
+        detail: 'No move, deletion or edit activity is logged around that month',
+      };
     }
-    return `No move or deletion logged; ${edits.length} ordinary edit(s) around that month`;
+    return {
+      cause: 'edits_only',
+      detail: `No move or deletion is logged, only ${edits.length} ordinary edit(s) around that month`,
+    };
   } catch {
     return null; // verification is a bonus, never a reason to fail the run
   }
@@ -124,17 +146,18 @@ export async function runViews(
     });
     // A detected break is worth one extra request to explain.
     if (quality.signals.changepoint) {
-      const note = await verifyChangepoint(r.lang, r.title, quality.signals.changepoint.month);
-      if (note) {
-        quality.signals.changepoint.log_check = note;
+      const checked = await verifyChangepoint(r.lang, r.title, quality.signals.changepoint.month);
+      if (checked) {
+        // Re-assess with the verdict in hand: which rule fires, and therefore what
+        // the report says, depends on whether an article event was found.
         quality = assess({
           series: series.series,
           monthly,
           comparison,
           medianDaily: medianDaily(series.series, 90),
-          changepointNote: note,
+          changepointCheck: checked,
         });
-        quality.signals.changepoint.log_check = note;
+        Object.assign(quality.signals.changepoint, { cause: checked.cause, log_check: checked.detail });
       }
     }
     return { meta: r, series, monthly, totals, comparison, quality };

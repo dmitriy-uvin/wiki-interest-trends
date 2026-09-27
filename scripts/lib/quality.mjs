@@ -214,16 +214,31 @@ const RULES = [
     test: (s) => s.median_daily >= 10 && s.median_daily < 50,
     why: (s) => `median ${s.median_daily} views/day — small enough that single events move the figure`,
   },
+  // Two rules, not one, because a break with a move log and a break without one
+  // need different words in a report. Both still disqualify the period
+  // comparison: whatever caused it, the two halves are not the same measurement.
   {
-    id: 'changepoint',
+    id: 'changepoint_article_event',
     cost: 0.35,
-    disqualifying: true, // the series stopped measuring one consistent thing
-    test: (s) => Boolean(s.changepoint),
+    disqualifying: true,
+    test: (s) => Boolean(s.changepoint) && s.changepoint.cause === 'article_event',
     why: (s) =>
       `level ${s.changepoint.direction} of ${s.changepoint.ratio}x at ${s.changepoint.month} ` +
-      `(${s.changepoint.before} to ${s.changepoint.after}/month) with no recovery — the series is not measuring ` +
-      `the same thing throughout, so the period comparison is not meaningful` +
-      (s.changepoint.log_check ? `. ${s.changepoint.log_check}` : ''),
+      `(${s.changepoint.before} to ${s.changepoint.after}/month). ${s.changepoint.log_check} — the article was moved ` +
+      `or merged, so this is not a change in interest and must not be reported as one`,
+  },
+  {
+    id: 'changepoint_unexplained',
+    cost: 0.35,
+    disqualifying: true, // the series stopped measuring one consistent thing
+    test: (s) => Boolean(s.changepoint) && s.changepoint.cause !== 'article_event',
+    why: (s) =>
+      `level ${s.changepoint.direction} of ${s.changepoint.ratio}x at ${s.changepoint.month} ` +
+      `(${s.changepoint.before} to ${s.changepoint.after}/month) with no recovery` +
+      (s.changepoint.cause
+        ? `. ${s.changepoint.log_check} — the shift itself looks real, so report the shift and its date, not the ` +
+          `period percentage, which compares two different levels`
+        : ` — the series is not measuring the same thing throughout, so the period comparison is not meaningful`),
   },
   {
     id: 'spike_sign_flip',
@@ -260,10 +275,13 @@ const RULES = [
 ];
 
 /** Assess one language's series: a label, a score, and the reason for every deduction. */
-export function assess({ series, monthly, comparison, medianDaily, changepointNote }) {
+export function assess({ series, monthly, comparison, medianDaily, changepointCheck }) {
   const spikes = detectSpikes(series);
   const changepoint = detectChangepoint(monthly);
-  if (changepoint && changepointNote) changepoint.log_check = changepointNote;
+  if (changepoint && changepointCheck) {
+    changepoint.cause = changepointCheck.cause;
+    changepoint.log_check = changepointCheck.detail;
+  }
   const monthlySpike = detectMonthlySpike(monthly);
   const spikeDates = new Set(spikes.days.map((d) => d.date));
 
