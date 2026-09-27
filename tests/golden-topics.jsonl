@@ -1,0 +1,13 @@
+{"topic": "gold mining", "qid": "Q1071389", "means": "process of extracting gold from the ground", "confidence": "high", "senses": []}
+{"topic": "meditation", "qid": "Q108458", "means": "mental practice of focus", "confidence": "high", "senses": [], "note": "has sub-articles (Buddhist/Taoist meditation) that must NOT count as rival senses"}
+{"topic": "intermittent fasting", "qid": "Q1666254", "means": "diet cycling between fasting and non-fasting", "confidence": "high", "senses": []}
+{"topic": "astronomy", "qid": "Q333", "means": "natural science of celestial objects", "confidence": "high", "senses": []}
+{"topic": "electric car", "qid": "Q193692", "means": "automobile propelled by an electric motor", "confidence": "high", "senses": []}
+{"topic": "Solar System", "qid": "Q544", "means": "the Sun, its planets and their moons", "confidence": "high", "senses": []}
+{"topic": "Java", "qid": "Q3757", "means": "island of Indonesia", "confidence": "medium", "senses": ["Q251"], "note": "Q251 is the programming language. A course app asking about Java means Q251, and the exact-title route used to answer Q3757 at high confidence."}
+{"topic": "apple", "qid": "Q89", "means": "edible fruit of the apple tree", "confidence": "medium", "senses": ["Q312"], "note": "Q312 is Apple Inc."}
+{"topic": "Turkey", "qid": "Q43", "means": "country in West Asia and Southeast Europe", "confidence": "medium", "senses": ["Q43794"], "note": "Q43794 is the bird. It is the ninth search hit, which is why srlimit is 10."}
+{"topic": "Mercury", "qid": "Q308", "means": "first planet from the Solar System", "confidence": "medium", "senses": ["Q925"], "note": "Q925 is the element. Search rank put element, planet and Freddie Mercury first in different orders across calls, so the winner must not come from rank."}
+{"topic": "Python", "qid": "Q28865", "means": "general-purpose programming language", "confidence": "medium", "senses": []}
+{"topic": "how has gold mining interest changed for the last 6 months?", "qid": null, "means": "not a topic at all", "confidence": "low", "note": "whatever full-text search returns, the answer must be labelled low; asserting the QID would pin a garbage match"}
+{"topic": "astronomy course for kids", "qid": null, "means": "not a topic; matches a YouTube channel", "confidence": "low"}

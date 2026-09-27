@@ -5,9 +5,9 @@
 //
 // Design notes, each earned from observed behaviour:
 //   * Wikidata SITELINKS are the source of truth, not the langlinks of some
-//     article. For Q1071389 ("gold mining") sitelinks give 28 languages
-//     including a real German article (Goldbergbau), while English langlinks
-//     give 25 and point German at "Gold#Gewinnung" — a section, which cannot be
+//     article. For Q1071389 ("gold mining") sitelinks cover 26 language editions
+//     including a real German article (Goldbergbau), while English langlinks give
+//     25 and point German at "Gold#Gewinnung" — a section, which cannot be
 //     measured. Same concept, worse data.
 //   * When a language has no sitelink we look at langlinks anyway, purely to
 //     explain why (often "it is a section of a broader article").
@@ -67,8 +67,97 @@ export function looksLikeSentence(query) {
   return words.length >= 5 || /\?$/.test(String(query).trim());
 }
 
-export function matchConfidence(query, { via, title, label }) {
-  if (via === 'exact-title') return { confidence: 'high' };
+// Suffixes Wikipedia uses to separate senses of one name. A parenthetical
+// qualifier is the usual form ("Mercury (element)"); companies more often carry a
+// legal suffix ("Apple Inc.").
+const SENSE_SUFFIX = /\s*\((?:[^()]*)\)\s*$|\s*,?\s*(?:inc|inc\.|ltd|ltd\.|llc|plc|corp|corp\.|corporation|company|gmbh|s\.a\.)\s*$/i;
+
+/** A title with its disambiguating qualifier removed: "Java (island)" -> "Java". */
+export const stripQualifier = (title) => String(title).replace(SENSE_SUFFIX, '').trim();
+
+/**
+ * Other articles that claim the SAME name as the topic, i.e. competing senses.
+ *
+ * The rule is deliberately narrow, because the cost of being loose is warning on
+ * every topic. A candidate counts only when stripping its qualifier leaves the
+ * query itself: "Java (programming language)" and "Apple Inc." do, while
+ * "Buddhist meditation" and "Gold mining in Peru" do not -- those are narrower
+ * articles about the topic, not rival readings of the name.
+ *
+ * Why it matters at all: the exact-title route reports `high` confidence and
+ * never sees the alternatives, so "Java" resolves to the Indonesian island
+ * (Q3757) and "apple" to the fruit (Q89) with nothing to suggest another reading
+ * exists. That is the one failure mode in this skill that produces a clean,
+ * plausible, wholly wrong answer.
+ */
+export function competingSenses(query, titles, winnerTitle) {
+  const key = (t) => stripQualifier(t).toLowerCase();
+  const q = String(query).trim().toLowerCase();
+  const target = key(winnerTitle ?? query);
+  const seen = new Set([String(winnerTitle ?? '').toLowerCase()]);
+  const out = [];
+  for (const t of titles ?? []) {
+    const title = String(t);
+    if (seen.has(title.toLowerCase())) continue;
+    if (/\(disambiguation\)\s*$/i.test(title)) continue; // the dab page is not a sense
+    const k = key(title);
+    if (k !== q && k !== target) continue;
+    if (k === title.toLowerCase()) continue; // no qualifier stripped: same name, not a rival sense
+    seen.add(title.toLowerCase());
+    out.push(title);
+  }
+  return out;
+}
+
+/**
+ * Which candidate to measure, decided reproducibly.
+ *
+ * Search rank cannot be trusted to do it: two identical "Mercury" queries minutes
+ * apart returned Q308 (the planet) and Q15869 (Freddie Mercury) as the top usable
+ * hit, so the skill would have measured different concepts on identical input and
+ * a user comparing two runs would see the change as a change in interest.
+ *
+ * So: prefer candidates whose title IS the queried name once a qualifier is
+ * stripped -- the rival readings of the term, not a person or label that merely
+ * contains it. Among those, take the longest article, which `verifyTitles`
+ * already treats as a depth signal and which tracks prominence closely enough:
+ * "Python (programming language)" runs to tens of thousands of bytes against a
+ * few thousand for "Python (missile)". Wikidata id ascending breaks an exact tie,
+ * for reproducibility only. Where no candidate matches the name, search rank is
+ * genuine relevance information and is kept.
+ *
+ * Ordering by id alone was tried first and is wrong: Q15728 (a 1978 air-to-air
+ * missile) precedes Q28865 (the programming language), so "Python" resolved to
+ * the missile.
+ */
+export function pickWinner(topic, candidates) {
+  const withQid = (candidates ?? []).filter((c) => c.qid);
+  if (withQid.length < 2) return withQid[0] ?? null;
+  const q = String(topic).trim().toLowerCase();
+  const base = withQid.filter((c) => stripQualifier(c.title).toLowerCase() === q);
+  if (base.length === 1) return base[0];
+  if (base.length > 1) {
+    const num = (qid) => Number(String(qid).replace(/^Q/i, '')) || Number.MAX_SAFE_INTEGER;
+    return [...base].sort((a, b) => (b.bytes ?? 0) - (a.bytes ?? 0) || num(a.qid) - num(b.qid))[0];
+  }
+  return withQid[0];
+}
+
+export function matchConfidence(query, { via, title, label, senses = [] }) {
+  // A rival sense caps confidence wherever the match came from. An exact title is
+  // strong evidence that the STRING is right and says nothing about which of two
+  // meanings the user had in mind.
+  const ambiguity = senses.length
+    ? {
+        confidence: 'medium',
+        why:
+          `"${title}" is not the only article under this name — Wikipedia also has ` +
+          `${senses.map((x) => `"${x.title}"`).join(', ')}. Measured "${title}". ` +
+          `If the user meant another sense, re-run with that exact title.`,
+      }
+    : null;
+
+  if (via === 'exact-title') return ambiguity ?? { confidence: 'high' };
 
   const q = tokens(query);
   const t = new Set([...tokens(title), ...tokens(label ?? '')]);
@@ -101,10 +190,12 @@ export function matchConfidence(query, { via, title, label }) {
   if (coverage < 1) {
     return {
       confidence: 'medium',
-      why: `matched on ${hits.map((h) => `"${h}"`).join(', ')}; confirm "${title}" is the intended article`,
+      why:
+        `matched on ${hits.map((h) => `"${h}"`).join(', ')}; confirm "${title}" is the intended article` +
+        (ambiguity ? `. ${ambiguity.why}` : ''),
     };
   }
-  return { confidence: 'medium' };
+  return ambiguity ?? { confidence: 'medium' };
 }
 
 /**
@@ -112,32 +203,107 @@ export function matchConfidence(query, { via, title, label }) {
  * Tries the cheapest, most precise route first and records which route won so
  * the caller can show it.
  */
+// A rival sense is worth mentioning only if it is a developed article. Observed
+// sizes on en, for the senses a disambiguation page lists:
+//   Turkey     -> bird 41,214 | nickname 710 | bowling 118
+//   Java       -> software platform 79,155 | programming language 75,161 | ship 9,745
+//   apple      -> Apple Inc. 272,516 | artwork 4,239 | 1910s automobile 3,265
+//   meditation -> a painting 14,610 | a Jobim song 9,198 | a writing form 3,435
+// The floor has to sit above meditation's trivia and below Turkey's bird, which
+// is what separates "the user may well have meant this" from an index entry. A
+// share of the measured article is kept as an alternative test, because 20 kB
+// means something different in a small edition than it does on en.
+const SENSE_MIN_BYTES = 20_000;
+const SENSE_MIN_SHARE = 0.5;
+const SENSE_MAX = 3; // a report bullet naming six senses is not read
+
+/**
+ * Rival senses, taken from the disambiguation page rather than from search.
+ *
+ * Search rank was tried first and is too unstable at the tail: "Turkey (bird)"
+ * came ninth of ten one day and outside the top ten the next, so the same query
+ * reported the ambiguity or missed it depending on the hour. A disambiguation
+ * page is Wikipedia's own enumeration of the senses and changes rarely.
+ *
+ * One request: `generator=links` over the dab page with `prop=info|pageprops`
+ * returns each linked article with its size and Wikidata id together.
+ */
+async function sensesFromDab(lang, dabTitle, topic, winnerBytes) {
+  const d = await getJson(
+    `${apiFor(lang)}?${q({
+      action: 'query',
+      titles: dabTitle,
+      generator: 'links',
+      gplnamespace: '0',
+      gpllimit: '500',
+      prop: 'info|pageprops',
+    })}`,
+  );
+  if (d === NO_DATA) return [];
+  const pages = (d?.query?.pages ?? []).filter(
+    (p) => !p.missing && p.pageprops?.disambiguation === undefined && p.pageprops?.wikibase_item,
+  );
+  const keep = new Set(competingSenses(topic, pages.map((p) => p.title), dabTitle));
+  const floor = Math.min(SENSE_MIN_BYTES, Math.max(1, (winnerBytes ?? 0) * SENSE_MIN_SHARE));
+  return pages
+    .filter((p) => keep.has(p.title) && (p.length ?? 0) >= floor)
+    .sort((a, b) => (b.length ?? 0) - (a.length ?? 0))
+    .slice(0, SENSE_MAX)
+    .map((p) => ({ title: p.title, qid: p.pageprops.wikibase_item }));
+}
+
+/** The page that enumerates this name's senses, if Wikipedia has one. */
+function dabTitleFor(pages, topic) {
+  const dab = (pages ?? []).find((p) => !p.missing && p.pageprops?.disambiguation !== undefined);
+  return dab?.title ?? null;
+}
+
 export async function findEntity(topic, { fromLang = 'en' } = {}) {
   const candidates = [];
 
-  // 1. Exact title match on the source wiki (follows redirects).
+  // 1. Exact title match on the source wiki (follows redirects), and the
+  //    full-text search in the SAME request: MediaWiki allows a `list=` beside
+  //    `titles=`, so rival senses cost no extra round trip on the exact-title
+  //    route, and the search route makes one request fewer than it used to.
+  // Three jobs in one request: the exact-title lookup, the full-text search, and
+  // "does a disambiguation page exist for this name". MediaWiki allows several
+  // titles and a `list=` in the same query, so none of that costs a round trip.
   const byTitle = await getJson(
-    `${apiFor(fromLang)}?${q({ action: 'query', titles: topic, prop: 'pageprops', redirects: '1' })}`,
+    `${apiFor(fromLang)}?${q({
+      action: 'query',
+      titles: [topic, `${topic} (disambiguation)`].join('|'),
+      prop: 'pageprops|info',
+      redirects: '1',
+      list: 'search',
+      srsearch: topic,
+      srlimit: '10',
+    })}`,
   );
-  const page = byTitle !== NO_DATA ? byTitle?.query?.pages?.[0] : null;
+  const pages = byTitle !== NO_DATA ? (byTitle?.query?.pages ?? []) : [];
+  const wanted = String(topic).trim().toLowerCase();
+  const page =
+    pages.find((p) => !p.missing && p.title.toLowerCase() === wanted) ??
+    pages.find((p) => !p.missing && !/\(disambiguation\)$/i.test(p.title)) ??
+    null;
+  const dabTitle = dabTitleFor(pages, topic);
+  const hits = byTitle !== NO_DATA ? (byTitle?.query?.search ?? []) : [];
+
   if (page && !page.missing) {
     const qid = page.pageprops?.wikibase_item;
     const isDab = page.pageprops?.disambiguation !== undefined;
     if (qid && !isDab) {
-      return { qid, via: 'exact-title', sourceTitle: page.title, sourceLang: fromLang, candidates };
+      // One extra request, and only for a name Wikipedia itself disambiguates.
+      const senses = dabTitle ? await sensesFromDab(fromLang, dabTitle, topic, page.length) : [];
+      return { qid, via: 'exact-title', sourceTitle: page.title, sourceLang: fromLang, candidates, senses };
     }
     if (isDab) candidates.push({ title: page.title, note: 'disambiguation page, skipped' });
   }
 
-  // 2. Full-text search on the source wiki.
-  const search = await getJson(
-    `${apiFor(fromLang)}?${q({ action: 'query', list: 'search', srsearch: topic, srlimit: '5' })}`,
-  );
-  const hits = search !== NO_DATA ? (search?.query?.search ?? []) : [];
+  // 2. Full-text search results, from the request above.
   if (hits.length) {
     const titles = hits.map((h) => h.title).join('|');
     const info = await getJson(
-      `${apiFor(fromLang)}?${q({ action: 'query', titles, prop: 'pageprops', redirects: '1' })}`,
+      `${apiFor(fromLang)}?${q({ action: 'query', titles, prop: 'pageprops|info', redirects: '1' })}`,
     );
     const pages = info !== NO_DATA ? (info?.query?.pages ?? []) : [];
     const byTitleMap = new Map(pages.map((p) => [p.title, p]));
@@ -146,16 +312,20 @@ export async function findEntity(topic, { fromLang = 'en' } = {}) {
       const qid = p?.pageprops?.wikibase_item;
       const isDab = p?.pageprops?.disambiguation !== undefined;
       if (!qid || isDab) continue;
-      candidates.push({ title: h.title, qid });
+      candidates.push({ title: h.title, qid, ...(p.length != null && { bytes: p.length }) });
     }
-    const winner = candidates.find((c) => c.qid);
+    const winner = pickWinner(topic, candidates);
     if (winner) {
+      const senses = dabTitle
+        ? (await sensesFromDab(fromLang, dabTitle, topic, winner.bytes)).filter((x) => x.qid !== winner.qid)
+        : [];
       return {
         qid: winner.qid,
         via: 'wiki-search',
         sourceTitle: winner.title,
         sourceLang: fromLang,
         candidates: candidates.filter((c) => c !== winner).slice(0, 3),
+        senses,
       };
     }
   }
@@ -346,7 +516,12 @@ export async function resolveTopic(topic, langs, { fromLang = 'en', verify = tru
     });
   }
 
-  const match = matchConfidence(topic, { via: entity.via, title: entity.sourceTitle, label: meta.label });
+  const match = matchConfidence(topic, {
+    via: entity.via,
+    title: entity.sourceTitle,
+    label: meta.label,
+    senses: entity.senses ?? [],
+  });
 
   return {
     topic,
@@ -357,6 +532,7 @@ export async function resolveTopic(topic, langs, { fromLang = 'en', verify = tru
       via: entity.via,
       source_title: entity.sourceTitle,
       ...match,
+      ...(entity.senses?.length && { other_senses: entity.senses }),
     },
     ...(entity.candidates?.length && { other_candidates: entity.candidates }),
     resolved,
