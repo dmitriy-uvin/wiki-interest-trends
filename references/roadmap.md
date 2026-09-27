@@ -115,6 +115,14 @@ Pageviews measure curiosity. To get closer to demand:
 
 - Grow `evals/scenarios.jsonl` from real transcripts, especially cases where the
   model chose the wrong command or quoted an unsupported number.
+- Extend the claim checker past figures. `wt check` (`scripts/lib/claims.mjs`)
+  catches invented numbers, sign flips, wrong-edition attribution and unhedged
+  low-confidence figures — all of which need a number to be present. The failures
+  it cannot see are the numberless ones: "Polish shows no growth" for a language
+  with no article, or a real percentage framed as something it is not. The next
+  step is assertions over `unresolved` and `confidence` coverage: every
+  unmeasurable language named in the answer, every LOW row hedged, checked the
+  same deterministic way.
 - Golden-file regression tests on `analysis.json` so a statistics change cannot
   silently move published figures.
 - Track tokens and cost per scenario. If a change makes the skill more accurate

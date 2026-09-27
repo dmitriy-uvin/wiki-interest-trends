@@ -37,12 +37,17 @@ Transcripts and scores are written to `evals/results/`.
 | `required_content` | The answer covers what it must (e.g. that Polish has no article) |
 | `avoided_wrong_claims` | The answer avoids specific known-wrong statements |
 | `numbers_traceable` | **Every figure in the answer appeared in command output** |
+| `topic_extracted` | The model passed a topic, not the user's whole question, as the argument |
 
 `numbers_traceable` is the important one. Prose can be persuasive; an invented
 number is detectable. Comparison is numeric, not substring — substring matching
 silently accepts fabrications, since "63" occurs inside "40630". Small integers,
 years, and figures the model rounded for readability are ignored, so the check
 flags invention rather than paraphrase.
+
+It is not a harness-only check. The function lives in `scripts/lib/claims.mjs` and
+ships as `wt check`, which also gates `--notes` on the PDF — so this harness scores
+the same code a user gets, rather than a second implementation of it.
 
 ## Scenarios
 
@@ -51,7 +56,7 @@ flags invention rather than paraphrase.
 | `brief-1-fasting` | Course brief example 1. Polish has no article; the gap must not be reported as zero interest. |
 | `brief-2-astronomy` | Course brief example 2. Must quote normalized figures and state limitations. |
 | `brief-3-language-learning` | Course brief example 3. Multi-language comparison plus a recommendation. |
-| `gold-mining-es-cliff` | The −85% that is an article rename, not a market collapse. |
+| `gold-mining-es-cliff` | The −85% that is a level break, not a market collapse. Its cause is unverified — the logs are empty — so the answer must not call it a rename either. |
 | `low-volume-uk` | 261 views in a year; the model must notice the volume is too low. |
 | `german-fold` | The concept folds into a broader article. |
 | `followup-add-language` | A refinement turn; must re-run rather than invent. |

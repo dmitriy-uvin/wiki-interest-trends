@@ -15,9 +15,29 @@ Month arithmetic clamps rather than overflows: 2026-01-31 minus one month is
 
 1. Look up the topic phrase as an exact title on the `--from` edition, following
    redirects. If it exists and is not a disambiguation page, take its Wikidata id.
-2. Otherwise full-text search that edition and take the first non-disambiguation
-   hit. Other candidates are returned in `other_candidates`.
+2. Otherwise full-text search that edition (top 10 hits) and pick a winner among
+   the non-disambiguation hits. **Not** simply the first: search rank is not
+   reproducible — two "Mercury" queries minutes apart ranked the element, the
+   planet and Freddie Mercury differently, which would measure a different concept
+   on identical input. Instead prefer candidates whose title *is* the queried name
+   once a disambiguating qualifier is stripped, then the largest article among
+   them, then the lowest Wikidata id. Where no candidate matches the name, search
+   rank is genuine relevance and is kept. Losing candidates are returned in
+   `other_candidates`.
 3. Otherwise search Wikidata entities directly.
+
+Steps 1 and 2 share one request: MediaWiki accepts several `titles` and a `list=`
+in the same query, so the exact-title lookup, the search, and the check for a
+`<topic> (disambiguation)` page cost one round trip together.
+
+**Rival senses.** When the name has a disambiguation page, its links are read once
+(`generator=links` with `prop=info|pageprops`, so each sense arrives with its size
+and Wikidata id) and filtered to genuine rival readings — a title that becomes the
+query once its qualifier is stripped. `Java (programming language)` and `Apple Inc.`
+qualify; `Buddhist meditation` and `Gold mining in Peru` do not, being narrower
+articles about the topic rather than other meanings of the name. Survivors are
+reported as `other_senses` and cap `entity.confidence` at `medium`, including on an
+exact-title match: a page existing at "Java" proves the string, not the meaning.
 
 Then fetch **sitelinks** for that Wikidata item, filtered to the requested
 languages. Sitelinks, not langlinks: langlinks can point at article sections,
@@ -112,23 +132,41 @@ loses points; the label is `high` at 0.7+, `medium` at 0.4+, `low` below.
 | `no_signal` | 0.5 | median < 1 view/day. **Disqualifying.** |
 | `very_low_volume` | 0.35 | median 1-10 views/day |
 | `low_volume` | 0.15 | median 10-50 views/day |
-| `changepoint` | 0.35 | a permanent level shift. **Disqualifying.** |
+| `changepoint_article_event` | 0.35 | a permanent level shift **with** a move/deletion/protection logged around that month. **Disqualifying.** |
+| `changepoint_unexplained` | 0.35 | a permanent level shift with nothing logged to explain it. **Disqualifying.** |
 | `spike_sign_flip` | 0.3 | removing spike days flips the year-over-year sign |
 | `monthly_spike` | 0.25 | up to 3 months far above the rest |
 | `spike_heavy` | 0.2 | over 20% of views fall on spike days |
 | `sparse` | 0.15 | over 10% of days have no upstream data |
 | `short_history` | 0.2 | fewer than 24 complete months |
 
-Two rules are **disqualifying**: they force `low` whatever the score, because
-they are categorical rather than matters of degree. A series with no traffic has
-no trend to measure, and one with a level shift has stopped measuring a single
-consistent thing.
+Both changepoint rules disqualify the period comparison, because the two halves of
+the window are not the same measurement either way. They are separate rules
+because the report has to say different things:
+
+- **article event** — en `X (social network)` rises 128.9× at `202603` and the log
+  shows `move/move` plus `protect/move_prot`. The article was moved onto that
+  title. Nothing about interest changed, and the figure must not be reported as a
+  market signal at all.
+- **unexplained** — es `Minería del oro` falls 8.3× at `202505` with no move, no
+  deletion and no edits logged, and all-agents traffic falls with it. The shift is
+  real and nobody can say why. Report the shift and its date; the percentage
+  compares two different levels and means nothing.
+
+When the log check could not run, the reason says only that the series is not
+measuring one thing throughout — it never claims an absence of activity it did not
+verify.
+
+Three rules are **disqualifying**: they force `low` whatever the score, because
+they are categorical rather than matters of degree. A series with no traffic has no
+trend to measure, and one with a level shift — of either kind — has stopped
+measuring a single consistent thing.
 
 ### How each detector avoids crying wolf
 
 Detection runs on the **underlying series, never the sparkline**. An eight-level
 display glyph puts the peak month at level 7 by definition, so pattern-matching
-on it flags about a third of all rows.
+on it flagged 44% of rows, against this rubric's 5%.
 
 **Spikes** use a median-absolute-deviation z-score on `log1p(views)`, cut off at
 3.5. The log stops a busy article's normal variation swamping a quiet one's.
@@ -232,6 +270,9 @@ exists because a real series defeated the version without it, and
 | `CP_MIN_ABRUPTNESS` | 0.6 | At least 60% of the window's total change must land at the split, separating a step from a slope. |
 | `CP_MIN_SEGMENT` | 4 months | Months required either side of a candidate split, so a series edge cannot masquerade as a break. |
 | `CP_WINDOW` | 3 months | Months averaged either side of the split to size the jump. |
+| `SENSE_MIN_BYTES` | 20,000 | A rival sense is only worth naming if it is a developed article. Observed on en: `Turkey (bird)` 41,214 against `Turkey (nickname)` 710; `Meditation (Maryon)`, a painting, 14,610. The floor sits between them. |
+| `SENSE_MIN_SHARE` | 0.5 | Alternative test for smaller editions, where 20 kB means something different: half the measured article's size. |
+| `SENSE_MAX` | 3 senses | A report bullet naming six senses is not read. |
 | `LABELS.high` / `.medium` | 0.7 / 0.4 | Score thresholds for the label. |
 
 The deduction costs in the rubric table above are likewise a judgement about how

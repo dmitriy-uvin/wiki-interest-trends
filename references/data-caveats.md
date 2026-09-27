@@ -29,8 +29,8 @@ The API measures exact article titles. Turning a topic phrase into a title per
 language is the main source of error.
 
 - **No article at all.** `pl.wikipedia` has no intermittent-fasting article; the
-  Wikidata item has 30 sitelinks and none for Polish. Reporting 0 views would be
-  wrong; the finding is a content gap.
+  Wikidata item had 31 sitelinks when this was last checked and none for Polish.
+  Reporting 0 views would be wrong; the finding is a content gap.
 - **Folded into a broader article.** Wikidata's German sitelink for gold mining
   is `Goldbergbau`, which *redirects to* `Gold` — the chemical element, a
   different Wikidata item (Q897). Measuring it would count interest in gold as
@@ -42,10 +42,13 @@ language is the main source of error.
   always printed.
 - **Section links.** English langlinks point German at `Gold#Gewinnung`, a
   section. Sections cannot be measured. The skill uses Wikidata sitelinks rather
-  than langlinks, which avoids this entirely — sitelinks gave 28 languages where
-  langlinks gave 25.
-- **Redirects split traffic.** English "Intermittent fasting" has 10 redirects,
-  each counted separately. A title's count is therefore a lower bound.
+  than langlinks, which avoids this entirely — for gold mining, sitelinks cover 26
+  language editions (28 sitelinks in all, counting Commons and Russian Wikinews)
+  against 25 langlinks.
+- **Redirects split traffic.** English "Intermittent fasting" has **26** redirects,
+  each counted separately, so a title's count is a lower bound. (An earlier draft
+  of this file said 10, which was MediaWiki's default `rdlimit` truncating the
+  list — a reminder to pass an explicit limit before quoting a count from an API.)
 - **Case matters.** `Intermittent_fasting` returns data; `intermittent_fasting`
   returns 404.
 
@@ -99,7 +102,7 @@ largest gold producers land in one bucket. Meanwhile Kazakhstan reads `kk` and
 
 Every report says "language edition" for this reason.
 
-## Step changes are article events, not market events
+## Step changes are not market events
 
 Spanish `Minería del oro`, monthly:
 
@@ -111,9 +114,20 @@ Spanish `Minería del oro`, monthly:
 2025-07    185
 ```
 
-Markets do not move like that. This is a rename, a merge, or lost redirects
-sending traffic to a different title. The reported −85% is arithmetically correct
-and substantively meaningless. The monthly sparkline exists to make this visible.
+Markets do not move like that. Whatever the cause, the two halves of the window are
+not the same measurement, so the reported −85% is arithmetically correct and
+substantively meaningless. The monthly sparkline exists to make this visible.
+
+The obvious explanation is a rename, a merge or lost redirects — but the skill
+checks rather than assuming, and for this article the check comes back empty: no
+move log, no deletion log, no edits during the drop, and all-agents traffic fell
+with `agent=user`. So this one is a real, unexplained collapse, and the rubric
+labels it `changepoint_unexplained` rather than claiming a rename.
+
+The contrast case is en `X (social network)`, which **rises** 128.9× at `202603`
+with `move/move` and `protect/move_prot` in the log. That is
+`changepoint_article_event`: the article was moved onto the title, and nothing about
+interest changed.
 
 ## Other limits
 
