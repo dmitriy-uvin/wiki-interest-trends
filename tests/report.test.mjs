@@ -2,7 +2,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { abbrev, buildDataRows } from '../scripts/lib/report.mjs';
+import { abbrev, buildDataRows, limitationsFor } from '../scripts/lib/report.mjs';
 
 test('abbreviation is compact and correct at every boundary', () => {
   assert.equal(abbrev(0), '0');
@@ -74,4 +74,27 @@ test('a language missing a month leaves a gap rather than a zero', () => {
   assert.equal(march.values.en, 102);
   assert.equal(march.values.uk, undefined, 'absent, so abbrev renders an en dash');
   assert.equal(abbrev(march.values.uk), '–');
+});
+
+test('an ambiguous topic name leads the limitations block', () => {
+  // The PDF is forwarded without the session around it, so "we measured the
+  // island, not the programming language" has to be on the page itself.
+  const ambiguous = {
+    topic: 'Java',
+    entity: {
+      qid: 'Q3757',
+      label: 'Java',
+      description: 'island of Indonesia',
+      other_senses: [{ title: 'Java (programming language)', qid: 'Q251' }],
+    },
+    window: { from: '2024-09-01', to: '2026-08-31', complete_months: 24 },
+    results: [{ lang: 'en', title: 'Java', days_missing: 0, confidence: 'high' }],
+    unresolved: [],
+  };
+  const first = limitationsFor(ambiguous)[0];
+  assert.match(first, /not a unique name/);
+  assert.match(first, /Java \(programming language\)/);
+
+  const plain = { ...ambiguous, entity: { qid: 'Q1071389', label: 'gold mining' }, topic: 'gold mining' };
+  assert.ok(!limitationsFor(plain).some((l) => /not a unique name/.test(l)), 'unambiguous topics say nothing about senses');
 });

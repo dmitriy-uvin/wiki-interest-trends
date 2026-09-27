@@ -2,6 +2,7 @@
 // unit-tested without making network calls or running the CLI.
 
 import { looksLikeSentence } from '../scripts/lib/resolve.mjs';
+import { untraceableNumbers } from '../scripts/lib/claims.mjs';
 
 /**
  * The quoted topic argument of each `views`/`resolve` command.
@@ -46,53 +47,10 @@ export const compile = (p) => new RegExp(String(p).replace(/\(\?i\)/g, ''), 'i')
 export const allMatch = (patterns, text) => (patterns ?? []).filter((p) => !compile(p).test(text));
 export const anyMatch = (patterns, text) => (patterns ?? []).filter((p) => compile(p).test(text));
 
-/**
- * Numbers in the answer that never appeared in any command output.
- *
- * This is the anti-hallucination check and the reason the harness exists: prose
- * can be persuasive, but an invented figure is detectable. Small integers,
- * years, and values the model rounded for readability are ignored, so this
- * flags invention rather than paraphrase.
- */
-export function untraceableNumbers(answer, toolOutput, reference = '') {
-  // Compare NUMERICALLY, never as substrings. Substring matching silently
-  // accepts invented figures: "63" occurs inside "40630", so a fabricated 62.5%
-  // would look traceable against any output containing that count.
-  const NUM = /-?\d[\d,]*(?:\.\d+)?/g;
-  const parse = (t) => (String(t).match(NUM) ?? []).map((x) => parseFloat(x.replace(/,/g, ''))).filter(Number.isFinite);
-
-  // SKILL.md states figures of its own (the per-edition traffic decline rates),
-  // and a model quoting those is citing documentation, not inventing.
-  const shown = [...parse(toolOutput), ...parse(reference)];
-  const shownForms = new Set();
-  for (const o of shown) {
-    for (const v of [o, Math.abs(o), Math.round(o), Math.abs(Math.round(o)), +o.toFixed(1), Math.abs(+o.toFixed(1))]) {
-      shownForms.add(v);
-    }
-  }
-
-  const bad = [];
-  for (const raw of String(answer).match(NUM) ?? []) {
-    const v = parseFloat(raw.replace(/,/g, ''));
-    if (!Number.isFinite(v)) continue;
-    const a = Math.abs(v);
-    if (a <= 24 && Number.isInteger(a)) continue; // counts, month spans, list numbering
-    if (Number.isInteger(a) && a >= 1900 && a <= 2100) continue; // years
-    if (shownForms.has(v) || shownForms.has(a)) continue;
-    // The model may round a shown figure for readability.
-    // Two tolerances, both for rounding rather than invention:
-    //   absolute <= 0.5, because the tool reports 248.5 and "248" is correct
-    //     (the strict < form failed exactly on the .5 boundary, which is where
-    //     rounding happens);
-    //   relative 2% above 100, because "~240" for 238 is ordinary prose.
-    // Neither hides a real error: a claimed 450 against an actual 248.5 is 81%
-    // out and still flagged.
-    if (shown.some((o) => Math.abs(Math.abs(o) - a) <= 0.5 && a >= 1)) continue;
-    if (a >= 100 && shown.some((o) => Math.abs(Math.abs(o) - a) / a <= 0.02)) continue;
-    bad.push(raw);
-  }
-  return [...new Set(bad)];
-}
+// The traceability check lives in scripts/lib/claims.mjs, because it ships as a
+// product feature (`wt check`, and the --notes gate on the PDF). Re-exported here
+// so this harness scores the gate users actually get, not a second copy of it.
+export { untraceableNumbers };
 
 /** Score one finished transcript against a scenario's checks. */
 export function score(sc, { commands, answer, toolOutput, reference = '' }) {

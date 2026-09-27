@@ -12,19 +12,13 @@
 import { readFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { buildLineChart, buildBarChart, drawOn, colorFor, toSvg } from './chart.mjs';
+import { checkClaims, langName } from './claims.mjs';
+import { WtError } from './http.mjs';
 
 const A4 = { w: 595.28, h: 841.89 };
 const M = 40; // page margin
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const FONT_DIR = path.join(HERE, '..', '..', 'assets', 'fonts');
-
-const langName = (code) => {
-  try {
-    return new Intl.DisplayNames(['en'], { type: 'language' }).of(code) ?? code;
-  } catch {
-    return code;
-  }
-};
 
 /** Read back everything a run wrote. No network. */
 export async function loadRun(dir) {
@@ -68,6 +62,15 @@ export function limitationsFor(analysis) {
     'Normalized figures divide by each project’s total traffic. This is what makes editions comparable: every edition is losing human readers, at rates from about -7% (en) to -25% (uk) per year, so raw counts understate a topic that is merely holding its share.',
     'Bot traffic is excluded (agent=user). Raw all-agent traffic runs roughly a third higher.',
   ];
+  // First when present: if the wrong concept was measured, nothing below matters.
+  const senses = analysis.entity?.other_senses ?? [];
+  if (senses.length) {
+    out.unshift(
+      `"${analysis.topic}" is not a unique name. This measures ${analysis.entity.label ?? analysis.entity.qid}` +
+        `${analysis.entity.description ? ` (${analysis.entity.description})` : ''}; Wikipedia also has ` +
+        `${senses.map((x) => `"${x.title}"`).join(', ')} under the same name.`,
+    );
+  }
   if (analysis.results.some((r) => r.days_missing > 0)) {
     const worst = Math.max(...analysis.results.map((r) => r.days_missing));
     out.push(
@@ -245,6 +248,25 @@ export function drawDataPage(doc, analysis, monthly, { canRender, limitations })
 export async function writePdf(runDirPath, outPath, { notes = '' } = {}) {
   const { default: PDFDocument } = await import('pdfkit');
   const { analysis, monthly } = await loadRun(runDirPath);
+
+  // The notes box is the only agent-authored region on this page, so it is the
+  // only place an unsourced figure can reach a reader. Refuse rather than render:
+  // a wrong number in a forwarded PDF outlives the session that produced it, and
+  // by then nobody has the command output to check it against.
+  const notesCheck = notes.trim() ? checkClaims(analysis, notes) : { ok: true, warnings: [] };
+  if (!notesCheck.ok) {
+    // The reasons go in the message, not only in a field: WtError.toJSON emits
+    // error/message/fix, and an agent that cannot see WHICH figure was rejected
+    // can only guess at a correction.
+    throw new WtError(
+      'notes_unverified',
+      'The --notes text states figures this run does not support. ' + notesCheck.errors.map((i) => i.detail).join(' '),
+      {
+        issues: notesCheck.errors,
+        fix: 'quote figures as the command printed them, or leave them out — the page already carries the data',
+      },
+    );
+  }
 
   const [regular, bold] = await Promise.all([
     readFile(path.join(FONT_DIR, 'NotoSans-Regular.ttf')),
@@ -464,7 +486,7 @@ export async function writePdf(runDirPath, outPath, { notes = '' } = {}) {
   const { writeFile } = await import('node:fs/promises');
   const buf = Buffer.concat(chunks);
   await writeFile(outPath, buf);
-  return { path: outPath, bytes: buf.length, pages: 1 };
+  return { path: outPath, bytes: buf.length, pages: 2, notes_warnings: notesCheck.warnings };
 }
 
 /** Standalone SVG of the indexed chart, for viewing without a PDF reader. */

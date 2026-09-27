@@ -7,6 +7,7 @@
 // context. Agents get summaries and file paths; the files hold the data.
 
 import { parseArgs } from 'node:util';
+import { readFile } from 'node:fs/promises';
 import { WtError, userAgent } from './lib/http.mjs';
 import { resolveTopic } from './lib/resolve.mjs';
 import { runViews, renderTable, runDir } from './lib/views.mjs';
@@ -24,6 +25,12 @@ const USAGE = `wt — Wikipedia interest trends
       Build a one-page PDF from an existing run. Uses only cached files, so it
       makes no API calls. --notes adds your own prose in a labelled box; every
       figure on the page comes from the run's data.
+
+  wt check --run <run_id> --claims - | --claims <file> | "<text>"
+      Verify a draft answer against the run it came from, before sending it.
+      Flags figures that appear nowhere in the data, figures quoted against their
+      own sign, figures attributed to the wrong edition, and low-confidence
+      figures quoted with no caveat. Exits 1 on errors. No API calls.
 
   wt resolve <topic> --langs en,de,uk [--from en] [--no-verify] [--allow-fold]
       Show which article each language edition uses for a topic, and why any
@@ -63,7 +70,9 @@ async function cmdResolve(argv) {
     options: {
       langs: { type: 'string' },
       from: { type: 'string', default: 'en' },
-      verify: { type: 'boolean', default: true },
+      // parseArgs has no --no-x negation, so the documented negative form is its
+      // own option. Without this, `--no-verify` failed with an `internal` error.
+      'no-verify': { type: 'boolean', default: false },
       'allow-fold': { type: 'boolean', default: false },
     },
     allowPositionals: true,
@@ -75,7 +84,7 @@ async function cmdResolve(argv) {
   if (!langs.length) throw new WtError('no_langs', 'No languages given.', { fix: 'add --langs en,de,uk' });
   // console.log({ topic, langs });
   // console.log(topic, langs, { fromLang: values.from, verify: values.verify, allowFold: values['allow-fold'] })
-  out(await resolveTopic(topic, langs, { fromLang: values.from, verify: values.verify, allowFold: values['allow-fold'] }));
+  out(await resolveTopic(topic, langs, { fromLang: values.from, verify: !values['no-verify'], allowFold: values['allow-fold'] }));
   // out();
   // await resolveTopic(topic, langs, { fromLang: values.from, verify: values.verify, allowFold: values['allow-fold'] })
 }
@@ -87,7 +96,7 @@ async function cmdViews(argv) {
       langs: { type: 'string' },
       since: { type: 'string', default: '2y' },
       from: { type: 'string', default: 'en' },
-      verify: { type: 'boolean', default: true },
+      'no-verify': { type: 'boolean', default: false },
       'allow-fold': { type: 'boolean', default: false },
       table: { type: 'boolean', default: false },
       'no-cache': { type: 'boolean', default: false },
@@ -105,7 +114,7 @@ async function cmdViews(argv) {
   const summary = await runViews(topic, langs, {
     since: values.since,
     fromLang: values.from,
-    verify: values.verify,
+    verify: !values['no-verify'],
     allowFold: values['allow-fold'],
   });
   if (values.table) process.stdout.write(renderTable(summary) + '\n');
@@ -130,6 +139,7 @@ async function cmdReport(argv) {
   const { writePdf, writeSvg } = await import('./lib/report.mjs');
 
   const artifacts = {};
+  let notesWarnings = null;
   try {
     if (values.svg) artifacts.svg = (await writeSvg(dir, values.svg)).path;
     const pdfPath = values.pdf ?? (values.svg ? null : 'report.pdf');
@@ -137,6 +147,7 @@ async function cmdReport(argv) {
       const r = await writePdf(dir, pdfPath, { notes: values.notes });
       artifacts.pdf = r.path;
       artifacts.bytes = r.bytes;
+      if (r.notes_warnings?.length) notesWarnings = r.notes_warnings;
     }
   } catch (e) {
     if (e.code === 'ERR_MODULE_NOT_FOUND')
@@ -145,7 +156,57 @@ async function cmdReport(argv) {
       throw new WtError('run_not_found', `No run data at ${dir}`, { fix: 'run `wt views ...` first, then pass its run_id' });
     throw e;
   }
-  out({ run_id: values.run ?? null, source_dir: dir, artifacts, api_calls: 0 });
+  out({ run_id: values.run ?? null, source_dir: dir, artifacts, api_calls: 0, ...(notesWarnings && { notes_warnings: notesWarnings }) });
+}
+
+/** Read piped text, so an agent can send a draft answer without writing a file. */
+async function readStdin() {
+  if (process.stdin.isTTY) return '';
+  const chunks = [];
+  for await (const c of process.stdin) chunks.push(c);
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+async function cmdCheck(argv) {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    options: {
+      run: { type: 'string' },
+      dir: { type: 'string' },
+      claims: { type: 'string' },
+    },
+    allowPositionals: true,
+    strict: true,
+  });
+  if (!values.run && !values.dir)
+    throw new WtError('no_run', 'Nothing to check against.', { fix: 'pass --run <run_id> from a previous `wt views`' });
+  const dir = values.dir ?? runDir(values.run);
+
+  // stdin is read only when asked for with `--claims -`. Waiting on it by default
+  // would hang under any parent that opens stdin as an unwritten pipe, the eval
+  // harness included.
+  let text = positionals.join(' ').trim();
+  if (!text && values.claims) text = values.claims === '-' ? await readStdin() : await readFile(values.claims, 'utf8');
+  if (!text.trim())
+    throw new WtError('no_claims', 'No text to check.', {
+      fix: 'pass the draft as an argument: wt check --run <run_id> "<your draft answer>" (or --claims <file>, or --claims - to pipe it)',
+    });
+
+  const { loadAnalysis, checkClaims } = await import('./lib/claims.mjs');
+  let analysis;
+  try {
+    analysis = await loadAnalysis(dir);
+  } catch (e) {
+    if (e.code === 'ENOENT')
+      throw new WtError('run_not_found', `No run data at ${dir}`, { fix: 'run `wt views ...` first, then pass its run_id' });
+    throw e;
+  }
+
+  const result = checkClaims(analysis, text);
+  out({ run_id: values.run ?? null, source_dir: dir, api_calls: 0, ...result });
+  // Non-zero on errors as well as the JSON: a shell or CI step should fail, and
+  // an agent that ignores JSON still sees the command did not succeed.
+  if (!result.ok) process.exit(1);
 }
 
 async function cmdDoctor() {
@@ -199,6 +260,7 @@ try {
   if (cmd === 'resolve') await cmdResolve(rest);
   else if (cmd === 'views') await cmdViews(rest);
   else if (cmd === 'report') await cmdReport(rest);
+  else if (cmd === 'check') await cmdCheck(rest);
   else if (cmd === 'doctor') await cmdDoctor();
   else if (!cmd || cmd === '--help' || cmd === '-h') process.stdout.write(USAGE);
   else throw new WtError('unknown_command', `Unknown command "${cmd}".`, { fix: 'wt --help' });
