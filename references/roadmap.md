@@ -1,7 +1,21 @@
 # How to develop this further
 
-Ordered by value per unit of work. Each stage is independently shippable and the
-evidence for it comes from data this skill already produced.
+Ordered by value per unit of work. Each stage is independently shippable, and the
+evidence for it comes from data this skill already produced — which is the method
+as much as the order: ship the smallest thing that answers a real query, run it
+against real topics, and let what breaks choose the next stage.
+
+## Where this stands
+
+Built: resolution with fold detection and rival-sense flagging, per-edition
+normalisation, the confidence rubric (volume floors, spike and monthly-spike
+detection, changepoint detection with log verification), the two-verdict split
+between an article event and an unexplained shift, the PDF, and a deterministic
+checker over the agent's own prose (`wt check`, which also gates `--notes`).
+
+Open, in the order below: concept clusters, bulk-dump loading, trend significance,
+bot-share and redirect accounting, signals beyond pageviews, repeat-work
+ergonomics, and a wider evaluation.
 
 ## 1. Quality gating — the judge  ✅ BUILT
 
@@ -18,21 +32,37 @@ single real query should not have been reported as findings:
 | `tr` gold mining, **+92% normalized** on 838→1,349 views | One month's spike; one forum post could do it |
 | `es` gold mining, **−85%** | A break: 1,982→1,330→861→238 over Mar–Jun 2025, never recovering. Cause unknown — the move log, deletion log and revision history are all empty, and all-agents traffic fell too |
 
-What to add, all computable from series already cached:
+What was added, all computable from series already cached:
 
-- **Volume floor.** Median daily views below a threshold → `insufficient_volume`.
-- **Spike detection.** Robust z-score via median absolute deviation on
-  `log1p(daily)`. Then recompute year-over-year **excluding** spike days: if the
-  sign flips, the growth was one event.
-- **Changepoint detection.** CUSUM or a Pettitt test over the monthly series.
-  A sustained level shift means an article event, so the trend must not be
-  reported as a market signal. This catches the `es` case automatically.
+- ✅ **Volume floor.** Median daily views below a threshold → `no_signal` /
+  `very_low_volume` / `low_volume`.
+- ✅ **Spike detection.** Robust z-score via median absolute deviation on
+  `log1p(daily)`, plus the sensitivity check that matters: recompute
+  year-over-year **excluding** spike days, and if the sign flips the growth was one
+  event (`spike_sign_flip`).
+- ✅ **Changepoint detection.** Implemented as three conditions that must hold
+  together — large, abrupt and severed — rather than CUSUM or Pettitt, because a
+  steadily declining series also has a "best split" and the single-test versions
+  flagged ordinary decline. A sustained level shift means the two halves of the
+  window are not the same measurement, so the period comparison must not be
+  reported as a market signal. **What caused it is a separate question**, answered
+  by querying the move and deletion logs rather than assumed: `es` gold mining has
+  none, so it is `changepoint_unexplained`; en `X (social network)` has `move/move`,
+  so it is `changepoint_article_event`.
+
+Still open, and each independently shippable:
+
 - **Trend significance.** Mann–Kendall with tie correction, plus Sen's slope as
-  percent per year. Non-significant trends get labelled as flat.
-- **Bot-contamination check.** Compare `agent=user` against `all-agents` over
-  time; a rising automated share invalidates a trend.
+  percent per year. Non-significant trends get labelled flat. This is the single
+  biggest remaining gap in how findings are stated: a year-over-year figure
+  currently carries no confidence interval, so "growing" is not yet "growing beyond
+  noise".
+- **Bot-contamination check.** Compare `agent=user` against `all-agents` over time;
+  a rising automated share invalidates a trend, and the agent cannot currently see
+  it.
 - **Redirect accounting.** Sum the article's redirects; warn when they carry a
-  material share, since a title's count is a lower bound.
+  material share, since a title's count is a lower bound. English "Intermittent
+  fasting" has 26.
 
 Combine these into a **deterministic, documented rubric** producing a
 high/medium/low label plus plain-language reasons. Deterministic matters: a
